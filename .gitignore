@@ -37,5 +37,13 @@ yarn-error.*
 *.tsbuildinfo
 
 # generated native folders
-/ios
-/android
+ios/
+android/
+
+# local sqlite db files (device-only, never checked in)
+*.db
+*.db-journal
+
+# backend
+backend/dist/
+backend/.env
