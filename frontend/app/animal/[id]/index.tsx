@@ -4,14 +4,14 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, or } from 'drizzle-orm';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Surface } from '@/components/ui/Surface';
 import { Segmented, FilterChips } from '@/components/ui/Segmented';
 import { Fab } from '@/components/ui/Fab';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { db } from '@/db/client';
-import { ANIMAL_STATUSES, animals, birthRecords, breedingEvents, healthLogs, type AnimalStatus } from '@/db/schema';
+import { ANIMAL_STATUSES, animals, birthRecords, breedingEvents, healthLogs, type Animal, type AnimalStatus } from '@/db/schema';
 import { SpeciesAvatar } from '@/components/animals/SpeciesIcon';
 import { StatusBadge } from '@/components/animals/StatusBadge';
 import { showUndoToast } from '@/components/ui/UndoToast';
@@ -20,6 +20,7 @@ import { daysFromToday, formatDateForDisplay } from '@/utils/livestockRules';
 
 const SECTIONS = [
   { value: 'overview', label: 'Overview' },
+  { value: 'family', label: 'Family' },
   { value: 'breeding', label: 'Breeding' },
   { value: 'health', label: 'Health' },
   { value: 'births', label: 'Births' },
@@ -34,6 +35,27 @@ function DetailRow({ label, value }: { label: string; value: string }) {
       <Text className="text-caption uppercase text-tertiary">{label}</Text>
       <Text className="text-callout font-sans-medium capitalize text-primary">{value}</Text>
     </View>
+  );
+}
+
+function FamilyMemberRow({ label, member, onPress }: { label?: string; member: Animal; onPress: () => void }) {
+  const colors = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      className="min-h-touch flex-row items-center gap-3 rounded-field px-1 py-2 active:bg-sunken"
+    >
+      <SpeciesAvatar species={member.species} size={20} />
+      <View className="flex-1">
+        {label ? <Text className="text-caption uppercase text-tertiary">{label}</Text> : null}
+        <Text className="text-body font-sans-medium text-primary">
+          {member.tagNumber}
+          {member.name ? ` · ${member.name}` : ''}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.tertiary} />
+    </Pressable>
   );
 }
 
@@ -64,6 +86,20 @@ export default function AnimalDetailScreen() {
   const { data: births } = useLiveQuery(
     db.select().from(birthRecords).where(eq(birthRecords.motherId, id)).orderBy(desc(birthRecords.birthDate)),
   );
+
+  // Parents are looked up by id and may be empty (unset, or recorded before the parent's own
+  // entry existed); children are any animal that names this one as mother or father.
+  const { data: damRows } = useLiveQuery(db.select().from(animals).where(eq(animals.id, animal?.damId ?? '')));
+  const { data: sireRows } = useLiveQuery(db.select().from(animals).where(eq(animals.id, animal?.sireId ?? '')));
+  const { data: children } = useLiveQuery(
+    db
+      .select()
+      .from(animals)
+      .where(or(eq(animals.damId, id), eq(animals.sireId, id)))
+      .orderBy(desc(animals.birthDate)),
+  );
+  const dam = damRows?.[0];
+  const sire = sireRows?.[0];
 
   if (!animal) {
     return (
@@ -149,6 +185,43 @@ export default function AnimalDetailScreen() {
           </Surface>
         ) : null}
 
+        {section === 'family' ? (
+          <>
+            <Surface level="raised" className="gap-1 p-4">
+              <Text className="mb-1 text-headline font-sans-semibold text-primary">Parents</Text>
+              {!dam && !sire ? (
+                <Text className="text-callout text-tertiary">
+                  Not recorded. Add them from Edit if the mother or father is already in your herd.
+                </Text>
+              ) : (
+                <>
+                  {dam ? (
+                    <FamilyMemberRow label="Mother" member={dam} onPress={() => router.push(`/animal/${dam.id}`)} />
+                  ) : null}
+                  {sire ? (
+                    <FamilyMemberRow label="Father" member={sire} onPress={() => router.push(`/animal/${sire.id}`)} />
+                  ) : null}
+                </>
+              )}
+            </Surface>
+
+            <Surface level="raised" className="gap-1 p-4">
+              <Text className="mb-1 text-headline font-sans-semibold text-primary">
+                Offspring{children && children.length > 0 ? ` (${children.length})` : ''}
+              </Text>
+              {(children?.length ?? 0) === 0 ? (
+                <Text className="text-callout text-tertiary">
+                  No animals in your herd list {animal.tagNumber} as a parent yet.
+                </Text>
+              ) : (
+                children!.map((child) => (
+                  <FamilyMemberRow key={child.id} member={child} onPress={() => router.push(`/animal/${child.id}`)} />
+                ))
+              )}
+            </Surface>
+          </>
+        ) : null}
+
         {section === 'breeding' ? (
           (breeding?.length ?? 0) === 0 ? (
             <EmptyState icon="heart-outline" title="No breeding events" description="Log a heat or service to get started." />
@@ -164,7 +237,7 @@ export default function AnimalDetailScreen() {
                     Expected due {formatDateForDisplay(event.expectedDueDate)}
                   </Text>
                 ) : null}
-                {event.sireIdOrCode ? <Text className="text-callout text-secondary">Sire: {event.sireIdOrCode}</Text> : null}
+                {event.sireIdOrCode ? <Text className="text-callout text-secondary">Father: {event.sireIdOrCode}</Text> : null}
                 {event.technicianName ? <Text className="text-callout text-secondary">By {event.technicianName}</Text> : null}
                 {event.notes ? <Text className="text-callout text-secondary">{event.notes}</Text> : null}
               </TimelineEntry>

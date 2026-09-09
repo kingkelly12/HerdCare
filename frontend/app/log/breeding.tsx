@@ -84,7 +84,7 @@ export default function LogBreedingScreen() {
 
       {expectedDueDate ? <Callout>{`Expected due ${formatDateForDisplay(expectedDueDate)}`}</Callout> : null}
 
-      <TextField label="Sire (ID or code)" value={sireCode} onChangeText={setSireCode} placeholder="Optional" />
+      <TextField label="Father (ID or code)" value={sireCode} onChangeText={setSireCode} placeholder="Optional" />
       <TextField label="Technician" value={technician} onChangeText={setTechnician} placeholder="Optional" />
       <TextField label="Notes" value={notes} onChangeText={setNotes} placeholder="Optional" multiline numberOfLines={3} />
 

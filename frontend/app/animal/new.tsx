@@ -86,21 +86,21 @@ export default function NewAnimalScreen() {
 
       <QuickDateSelector label="Birth date" valueIso={birthDate} onChange={setBirthDate} allowUnknown />
 
-      <SelectedAnimalField label="Dam (mother)" animal={dam} onPress={() => setPickerOpen('dam')} />
-      <SelectedAnimalField label="Sire (father)" animal={sire} onPress={() => setPickerOpen('sire')} />
+      <SelectedAnimalField label="Mother" animal={dam} onPress={() => setPickerOpen('dam')} />
+      <SelectedAnimalField label="Father" animal={sire} onPress={() => setPickerOpen('sire')} />
 
       {error ? <Text className="text-callout text-danger">{error}</Text> : null}
 
       <AnimalSearchModal
         visible={pickerOpen === 'dam'}
-        title="Select dam"
+        title="Select mother"
         genderFilter="female"
         onSelect={setDam}
         onClose={() => setPickerOpen(null)}
       />
       <AnimalSearchModal
         visible={pickerOpen === 'sire'}
-        title="Select sire"
+        title="Select father"
         genderFilter="male"
         onSelect={setSire}
         onClose={() => setPickerOpen(null)}

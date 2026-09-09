@@ -57,7 +57,7 @@ export function buildBackupReportHtml(bundle: BackupBundle): string {
 
       const dam = animal.damId ? animalsById.get(animal.damId) : null;
       const sire = animal.sireId ? animalsById.get(animal.sireId) : null;
-      const lineage = [dam ? `Dam: ${dam.tagNumber}` : null, sire ? `Sire: ${sire.tagNumber}` : null]
+      const lineage = [dam ? `Mother: ${dam.tagNumber}` : null, sire ? `Father: ${sire.tagNumber}` : null]
         .filter(Boolean)
         .join(' · ');
 
