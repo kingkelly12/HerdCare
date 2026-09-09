@@ -135,8 +135,8 @@ export default function SettingsScreen() {
               </View>
             </View>
             <Text className="text-label text-tertiary">
-              Used as the starting price when you record a milking. Each milking keeps the price it was saved with, so
-              changing this never rewrites what you have already earned.
+              What you sell milk for. You can also change it while recording a milking. Each milking keeps the price it
+              was saved with, so updating this never rewrites what you have already earned.
             </Text>
           </Surface>
         </View>

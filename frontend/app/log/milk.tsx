@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { and, eq, inArray, notInArray } from 'drizzle-orm';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
@@ -13,7 +14,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SpeciesAvatar } from '@/components/animals/SpeciesIcon';
 import { db } from '@/db/client';
 import { loadMilkSession, saveMilkSession } from '@/db/milk';
-import { getSettings } from '@/db/reminders';
+import { getSettings, updateSettings } from '@/db/reminders';
 import { animals, MILK_SESSIONS, MILKING_SPECIES, type MilkSession } from '@/db/schema';
 import { getRelativeDateIso } from '@/utils/livestockRules';
 import { formatMoney } from '@/utils/money';
@@ -40,6 +41,7 @@ export default function LogMilkScreen() {
   const [litresByAnimal, setLitresByAnimal] = useState<Record<string, string>>({});
   const [pricePerLitre, setPricePerLitre] = useState('0');
   const [currency, setCurrency] = useState('KES');
+  const [editingPrice, setEditingPrice] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,6 +94,19 @@ export default function LogMilkScreen() {
     .filter((litres) => Number.isFinite(litres) && litres > 0);
   const sessionLitres = entered.reduce((sum, litres) => sum + litres, 0);
   const sessionRevenue = sessionLitres * price;
+
+  /**
+   * Persists the new rate as the standing price rather than treating it as a one-off override.
+   * A price that reverted after this milking would have to be retyped at the next one, which is
+   * the redundancy this screen previously had.
+   */
+  async function commitPrice() {
+    setEditingPrice(false);
+    const parsed = Number.parseFloat(pricePerLitre);
+    const next = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+    setPricePerLitre(String(next));
+    await updateSettings({ milkPricePerLitre: next }).catch(() => {});
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -170,19 +185,40 @@ export default function LogMilkScreen() {
         <Text className="text-label text-tertiary">Leave an animal blank if she was not milked.</Text>
       </View>
 
-      <View className="gap-2">
-        <Text className="text-label font-sans-semibold uppercase text-tertiary">Price per litre ({currency})</Text>
-        <TextInput
-          value={pricePerLitre}
-          onChangeText={setPricePerLitre}
-          keyboardType="decimal-pad"
-          placeholderTextColor={colors.tertiary}
-          className="min-h-touch rounded-field border border-line bg-surface px-4 py-3 text-body font-sans text-primary"
-        />
-        <Text className="text-label text-tertiary">
-          Saved with this milking, so changing your price later will not rewrite what you already earned.
-        </Text>
-      </View>
+      {/* Shown rather than asked for. The price is a standing rate that changes a few times a
+          year, so re-entering it at every milking would be busywork — and because editing here
+          writes the new rate back to Settings, changing it once is enough. */}
+      <Surface level="raised" className="flex-row items-center gap-3 p-4">
+        <Ionicons name="pricetag-outline" size={20} color={colors.secondary} />
+        {editingPrice ? (
+          <TextInput
+            value={pricePerLitre}
+            onChangeText={setPricePerLitre}
+            keyboardType="decimal-pad"
+            autoFocus
+            selectTextOnFocus
+            placeholderTextColor={colors.tertiary}
+            className="h-12 flex-1 rounded-field border border-line bg-surface px-3 text-body font-sans text-primary"
+          />
+        ) : (
+          <View className="flex-1">
+            <Text className="text-body font-sans-medium text-primary">
+              {price > 0 ? `${formatMoney(price, currency)} per litre` : 'No price set'}
+            </Text>
+            <Text className="text-label text-tertiary">
+              {price > 0 ? 'Your usual rate, from Settings' : 'Set it to see what your milk earns'}
+            </Text>
+          </View>
+        )}
+        <Pressable
+          accessibilityRole="button"
+          onPress={editingPrice ? commitPrice : () => setEditingPrice(true)}
+          hitSlop={8}
+          className="min-h-touch items-center justify-center rounded-pill px-3 active:bg-sunken"
+        >
+          <Text className="text-callout font-sans-bold text-brand">{editingPrice ? 'Save' : 'Change'}</Text>
+        </Pressable>
+      </Surface>
 
       {sessionLitres > 0 && price <= 0 ? (
         <Callout tone="warn">
