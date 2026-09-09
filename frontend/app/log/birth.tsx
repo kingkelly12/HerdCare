@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Text } from 'react-native';
+import { Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { eq } from 'drizzle-orm';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
-import { Card } from '@/components/ui/Card';
-import { ChipGroup } from '@/components/ui/Chip';
+import { Callout } from '@/components/ui/Callout';
+import { SelectGroup } from '@/components/ui/SelectGroup';
 import { TextField } from '@/components/ui/TextField';
 import { QuickDateSelector } from '@/components/ui/QuickDateSelector';
 import { Button } from '@/components/ui/Button';
@@ -15,6 +15,7 @@ import { db } from '@/db/client';
 import { animals, birthRecords, DELIVERY_TYPES, type Animal, type DeliveryType } from '@/db/schema';
 import { calculateWeaningDueDate, formatDateForDisplay, getRelativeDateIso } from '@/utils/livestockRules';
 import { notifySaved } from '@/lib/haptics';
+import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 
 const DELIVERY_OPTIONS = DELIVERY_TYPES.map((type) => ({ value: type, label: type }));
 
@@ -64,6 +65,8 @@ export default function LogBirthScreen() {
         notes: notes.trim() || null,
       });
       notifySaved();
+      // A birth retires the due-date reminder and opens the weaning one.
+      await refreshRemindersAndNotifications();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this birth record.');
@@ -78,9 +81,15 @@ export default function LogBirthScreen() {
 
       <QuickDateSelector label="Birth date" valueIso={birthDate} onChange={setBirthDate} />
 
-      <TextField label="Live births" value={liveBirths} onChangeText={setLiveBirths} keyboardType="number-pad" />
-      <TextField label="Stillbirths" value={stillbirths} onChangeText={setStillbirths} keyboardType="number-pad" />
-      <Text className="text-base text-ink-500">Total offspring: {totalOffspring}</Text>
+      <View className="flex-row gap-3">
+        <View className="flex-1">
+          <TextField label="Live births" value={liveBirths} onChangeText={setLiveBirths} keyboardType="number-pad" />
+        </View>
+        <View className="flex-1">
+          <TextField label="Stillbirths" value={stillbirths} onChangeText={setStillbirths} keyboardType="number-pad" />
+        </View>
+      </View>
+      <Text className="-mt-2 text-label text-tertiary">Total offspring: {totalOffspring}</Text>
 
       <TextField
         label="Average birth weight (kg)"
@@ -90,18 +99,13 @@ export default function LogBirthScreen() {
         placeholder="Optional"
       />
 
-      <Text className="text-base font-medium text-ink-700">Delivery type</Text>
-      <ChipGroup options={DELIVERY_OPTIONS} value={deliveryType} onChange={setDeliveryType} />
+      <SelectGroup label="Delivery type" options={DELIVERY_OPTIONS} value={deliveryType} onChange={setDeliveryType} columns={3} />
 
-      {weaningDueDate ? (
-        <Card className="bg-brand-50">
-          <Text className="text-base font-semibold text-brand-700">Weaning due {formatDateForDisplay(weaningDueDate)}</Text>
-        </Card>
-      ) : null}
+      {weaningDueDate ? <Callout>{`Weaning due ${formatDateForDisplay(weaningDueDate)}`}</Callout> : null}
 
       <TextField label="Notes" value={notes} onChangeText={setNotes} placeholder="Optional" multiline numberOfLines={3} />
 
-      {error ? <Text className="text-base text-danger-500">{error}</Text> : null}
+      {error ? <Text className="text-callout text-danger">{error}</Text> : null}
 
       <AnimalSearchModal
         visible={pickerOpen}

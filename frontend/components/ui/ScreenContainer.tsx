@@ -12,14 +12,22 @@ interface ScreenContainerProps {
 }
 
 export function ScreenContainer({ children, footer, fab, scroll = true }: ScreenContainerProps) {
-  const Body = scroll ? ScrollView : View;
   return (
-    <SafeAreaView edges={['bottom', 'left', 'right']} className="flex-1 bg-ink-50">
+    <SafeAreaView edges={['bottom', 'left', 'right']} className="flex-1 bg-canvas">
       <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Body className="flex-1" contentContainerClassName={scroll ? 'gap-4 p-4 pb-8' : undefined} style={scroll ? undefined : { flex: 1, padding: 16, gap: 16 }}>
-          {children}
-        </Body>
-        {footer ? <View className="border-t border-ink-100 bg-white p-4">{footer}</View> : null}
+        {scroll ? (
+          <ScrollView
+            className="flex-1"
+            contentContainerClassName="gap-5 px-4 pb-10 pt-2"
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {children}
+          </ScrollView>
+        ) : (
+          <View className="flex-1 gap-4 px-4 pt-2">{children}</View>
+        )}
+        {footer ? <View className="border-t border-line bg-surface px-4 py-3">{footer}</View> : null}
         {fab}
       </KeyboardAvoidingView>
     </SafeAreaView>

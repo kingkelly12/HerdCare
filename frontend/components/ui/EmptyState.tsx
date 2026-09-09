@@ -1,5 +1,7 @@
 import { Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useColors } from '@/theme/colors';
 
 interface EmptyStateProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -8,11 +10,16 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({ icon, title, description }: EmptyStateProps) {
+  const colors = useColors();
   return (
-    <View className="items-center justify-center gap-2 py-16">
-      <Ionicons name={icon} size={48} color="#94A190" />
-      <Text className="text-lg font-semibold text-ink-700">{title}</Text>
-      {description ? <Text className="max-w-xs text-center text-base text-ink-500">{description}</Text> : null}
-    </View>
+    <Animated.View entering={FadeInDown.duration(320)} className="items-center justify-center gap-3 py-16">
+      <View className="h-20 w-20 items-center justify-center rounded-pill bg-brand-soft">
+        <Ionicons name={icon} size={36} color={colors.brand} />
+      </View>
+      <Text className="text-headline font-sans-semibold text-primary">{title}</Text>
+      {description ? (
+        <Text className="max-w-[280px] text-center text-callout text-secondary">{description}</Text>
+      ) : null}
+    </Animated.View>
   );
 }

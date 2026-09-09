@@ -1,0 +1,98 @@
+import { useCallback } from 'react';
+import { Text, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
+import { asc, eq } from 'drizzle-orm';
+import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { Fab } from '@/components/ui/Fab';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { ReminderCard } from '@/components/reminders/ReminderCard';
+import { db } from '@/db/client';
+import { completeReminder, dismissReminder } from '@/db/reminders';
+import { animals, reminders } from '@/db/schema';
+import { refreshRemindersAndNotifications, refreshReminderData } from '@/lib/reminderSync';
+import { daysFromToday } from '@/utils/livestockRules';
+
+export default function RemindersScreen() {
+  useFocusEffect(
+    useCallback(() => {
+      refreshReminderData().catch(() => {});
+    }, []),
+  );
+
+  const { data } = useLiveQuery(
+    db
+      .select({ reminder: reminders, animal: animals })
+      .from(reminders)
+      .leftJoin(animals, eq(reminders.animalId, animals.id))
+      .where(eq(reminders.status, 'pending'))
+      .orderBy(asc(reminders.dueDate)),
+  );
+
+  const rows = data ?? [];
+  const overdue = rows.filter((row) => (daysFromToday(row.reminder.dueDate) ?? 0) < 0);
+  const today = rows.filter((row) => daysFromToday(row.reminder.dueDate) === 0);
+  const soon = rows.filter((row) => {
+    const days = daysFromToday(row.reminder.dueDate) ?? 0;
+    return days > 0 && days <= row.reminder.leadDays + 7;
+  });
+  const later = rows.filter((row) => {
+    const days = daysFromToday(row.reminder.dueDate) ?? 0;
+    return days > row.reminder.leadDays + 7;
+  });
+
+  async function handleDone(id: string) {
+    await completeReminder(id);
+    await refreshRemindersAndNotifications();
+  }
+
+  async function handleDismiss(id: string) {
+    await dismissReminder(id);
+    await refreshRemindersAndNotifications();
+  }
+
+  const sections = [
+    { title: 'Overdue', tone: 'text-danger', rows: overdue },
+    { title: 'Today', tone: 'text-warn', rows: today },
+    { title: 'Coming up', tone: 'text-secondary', rows: soon },
+    { title: 'Later', tone: 'text-tertiary', rows: later },
+  ].filter((section) => section.rows.length > 0);
+
+  return (
+    <ScreenContainer fab={<Fab icon="repeat" label="Repeating task" onPress={() => router.push('/schedule/new')} />}>
+      {sections.length === 0 ? (
+        <EmptyState
+          icon="checkmark-done-outline"
+          title="Nothing due"
+          description="Reminders appear here on their own when you log a service, treatment or birth."
+        />
+      ) : (
+        <>
+          <Animated.View entering={FadeInDown.duration(240)} className="pt-2">
+            <Text className="text-label text-tertiary">Swipe a card left to mark it done.</Text>
+          </Animated.View>
+          {sections.map((section) => (
+            <View key={section.title} className="gap-2">
+              <Text className={`text-label font-sans-semibold uppercase ${section.tone}`}>
+                {section.title} · {section.rows.length}
+              </Text>
+              {section.rows.map(({ reminder, animal }, i) => (
+                <ReminderCard
+                  key={reminder.id}
+                  reminder={reminder}
+                  animal={animal}
+                  index={i}
+                  onDone={() => handleDone(reminder.id)}
+                  onDismiss={() => handleDismiss(reminder.id)}
+                  onPressAnimal={animal ? () => router.push(`/animal/${animal.id}`) : undefined}
+                />
+              ))}
+            </View>
+          ))}
+        </>
+      )}
+      <View className="h-24" />
+    </ScreenContainer>
+  );
+}

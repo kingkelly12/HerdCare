@@ -1,5 +1,5 @@
 import { relations, sql } from 'drizzle-orm';
-import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/lib/id';
 
 export const SPECIES = ['cow', 'goat', 'sheep', 'pig', 'horse', 'donkey', 'dog'] as const;
@@ -16,7 +16,6 @@ export const BREEDING_EVENT_TYPES = [
   'served_natural',
   'served_ai',
   'induced',
-  'palpation_confirmed',
   'birth',
   'weaned',
 ] as const;
@@ -24,6 +23,25 @@ export type BreedingEventType = (typeof BREEDING_EVENT_TYPES)[number];
 
 export const DELIVERY_TYPES = ['normal', 'assisted', 'caesarean'] as const;
 export type DeliveryType = (typeof DELIVERY_TYPES)[number];
+
+/**
+ * Reminder kinds. The first four are *derived*: they are recomputed from the events the farmer
+ * already logged, so nothing extra has to be entered. `routine` covers repeating husbandry
+ * (deworming, vaccination, spraying) which no single event implies — those come from a schedule.
+ */
+export const REMINDER_TYPES = ['heat_return', 'birth_due', 'withdrawal_end', 'weaning_due', 'routine'] as const;
+export type ReminderType = (typeof REMINDER_TYPES)[number];
+
+export const DERIVED_REMINDER_TYPES = ['heat_return', 'birth_due', 'withdrawal_end', 'weaning_due'] as const;
+
+export const REMINDER_STATUSES = ['pending', 'done', 'dismissed'] as const;
+export type ReminderStatus = (typeof REMINDER_STATUSES)[number];
+
+export const REMINDER_SOURCE_TABLES = ['breeding_events', 'health_logs', 'birth_records'] as const;
+export type ReminderSourceTable = (typeof REMINDER_SOURCE_TABLES)[number];
+
+export const ROUTINE_CATEGORIES = ['deworming', 'vaccination', 'spraying', 'hoof_trimming', 'other'] as const;
+export type RoutineCategory = (typeof ROUTINE_CATEGORIES)[number];
 
 export const animals = sqliteTable(
   'animals',
@@ -118,6 +136,76 @@ export const healthLogs = sqliteTable(
   ],
 );
 
+/** A repeating husbandry task ("deworm the goats every 90 days"). Spawns one reminder at a time. */
+export const reminderSchedules = sqliteTable(
+  'reminder_schedules',
+  {
+    id: text('id').primaryKey().$defaultFn(generateId),
+    title: text('title').notNull(),
+    category: text('category', { enum: ROUTINE_CATEGORIES }).notNull(),
+    intervalDays: integer('interval_days').notNull(),
+    /** Limits the task to one species; null means the whole herd. */
+    speciesFilter: text('species_filter', { enum: SPECIES }),
+    nextDueDate: text('next_due_date').notNull(),
+    active: integer('active', { mode: 'boolean' }).notNull().default(true),
+    notes: text('notes'),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+  },
+  (table) => [index('reminder_schedules_next_due_date_idx').on(table.nextDueDate)],
+);
+
+export const reminders = sqliteTable(
+  'reminders',
+  {
+    id: text('id').primaryKey().$defaultFn(generateId),
+    /** Null for herd-wide routine tasks, which are not about one animal. */
+    animalId: text('animal_id').references(() => animals.id, { onDelete: 'cascade' }),
+    scheduleId: text('schedule_id').references(() => reminderSchedules.id, { onDelete: 'cascade' }),
+    type: text('type', { enum: REMINDER_TYPES }).notNull(),
+    /** Denormalised so the daily digest can be built without re-joining every source table. */
+    title: text('title').notNull(),
+    dueDate: text('due_date').notNull(),
+    /** How many days before `dueDate` this should start showing up as upcoming. */
+    leadDays: integer('lead_days').notNull().default(0),
+    status: text('status', { enum: REMINDER_STATUSES }).notNull().default('pending'),
+    completedAt: text('completed_at'),
+    /** Natural key of the logged event this was derived from; null for routine reminders. */
+    sourceTable: text('source_table', { enum: REMINDER_SOURCE_TABLES }),
+    sourceEventId: text('source_event_id'),
+    notes: text('notes'),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+  },
+  (table) => [
+    index('reminders_due_date_idx').on(table.dueDate),
+    index('reminders_status_idx').on(table.status),
+    index('reminders_animal_id_idx').on(table.animalId),
+    index('reminders_schedule_id_idx').on(table.scheduleId),
+    // One derived reminder per (source event, type). SQLite treats NULLs as distinct, so routine
+    // reminders — which have no source event — are unaffected by this constraint.
+    uniqueIndex('reminders_source_idx').on(table.sourceTable, table.sourceEventId, table.type),
+  ],
+);
+
+/** Single-row table (id is always 'default') holding the farmer's reminder preferences. */
+export const settings = sqliteTable('settings', {
+  id: text('id').primaryKey().default('default'),
+  digestEnabled: integer('digest_enabled', { mode: 'boolean' }).notNull().default(true),
+  /** Local hour/minute the daily briefing is delivered — default is before the morning round. */
+  digestHour: integer('digest_hour').notNull().default(6),
+  digestMinute: integer('digest_minute').notNull().default(0),
+  remindHeatReturn: integer('remind_heat_return', { mode: 'boolean' }).notNull().default(true),
+  remindBirthDue: integer('remind_birth_due', { mode: 'boolean' }).notNull().default(true),
+  remindWithdrawalEnd: integer('remind_withdrawal_end', { mode: 'boolean' }).notNull().default(true),
+  remindWeaningDue: integer('remind_weaning_due', { mode: 'boolean' }).notNull().default(true),
+  remindRoutine: integer('remind_routine', { mode: 'boolean' }).notNull().default(true),
+  /** When the farmer last exported a backup — drives the "your records are not backed up" nudge. */
+  lastBackupAt: text('last_backup_at'),
+  createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+});
+
 export const animalsRelations = relations(animals, ({ one, many }) => ({
   dam: one(animals, { fields: [animals.damId], references: [animals.id], relationName: 'dam' }),
   sire: one(animals, { fields: [animals.sireId], references: [animals.id], relationName: 'sire' }),
@@ -138,6 +226,15 @@ export const healthLogsRelations = relations(healthLogs, ({ one }) => ({
   animal: one(animals, { fields: [healthLogs.animalId], references: [animals.id] }),
 }));
 
+export const remindersRelations = relations(reminders, ({ one }) => ({
+  animal: one(animals, { fields: [reminders.animalId], references: [animals.id] }),
+  schedule: one(reminderSchedules, { fields: [reminders.scheduleId], references: [reminderSchedules.id] }),
+}));
+
+export const reminderSchedulesRelations = relations(reminderSchedules, ({ many }) => ({
+  reminders: many(reminders),
+}));
+
 export type Animal = typeof animals.$inferSelect;
 export type NewAnimal = typeof animals.$inferInsert;
 export type BreedingEvent = typeof breedingEvents.$inferSelect;
@@ -146,3 +243,8 @@ export type BirthRecord = typeof birthRecords.$inferSelect;
 export type NewBirthRecord = typeof birthRecords.$inferInsert;
 export type HealthLog = typeof healthLogs.$inferSelect;
 export type NewHealthLog = typeof healthLogs.$inferInsert;
+export type Reminder = typeof reminders.$inferSelect;
+export type NewReminder = typeof reminders.$inferInsert;
+export type ReminderSchedule = typeof reminderSchedules.$inferSelect;
+export type NewReminderSchedule = typeof reminderSchedules.$inferInsert;
+export type Settings = typeof settings.$inferSelect;

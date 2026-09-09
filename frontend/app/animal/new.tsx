@@ -3,20 +3,27 @@ import { Text } from 'react-native';
 import { router } from 'expo-router';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { TextField } from '@/components/ui/TextField';
-import { ChipGroup } from '@/components/ui/Chip';
+import { SelectGroup } from '@/components/ui/SelectGroup';
 import { QuickDateSelector } from '@/components/ui/QuickDateSelector';
 import { Button } from '@/components/ui/Button';
 import { AnimalSearchModal } from '@/components/animals/AnimalSearchModal';
 import { SelectedAnimalField } from '@/components/animals/SelectedAnimalField';
+import { SpeciesIcon } from '@/components/animals/SpeciesIcon';
 import { db } from '@/db/client';
-import { animals, type Animal, type Gender, type Species } from '@/db/schema';
-import { SPECIES_LIST } from '@/utils/livestockRules';
+import { animals, SPECIES, type Animal, type Gender, type Species } from '@/db/schema';
+import { SPECIES_RULES } from '@/utils/livestockRules';
 import { notifySaved } from '@/lib/haptics';
 
 const GENDER_OPTIONS: { value: Gender; label: string }[] = [
   { value: 'female', label: 'Female' },
   { value: 'male', label: 'Male' },
 ];
+
+const SPECIES_OPTIONS = SPECIES.map((species) => ({
+  value: species,
+  label: SPECIES_RULES[species].label,
+  icon: <SpeciesIcon species={species} size={20} />,
+}));
 
 export default function NewAnimalScreen() {
   const [tagNumber, setTagNumber] = useState('');
@@ -62,18 +69,18 @@ export default function NewAnimalScreen() {
 
   return (
     <ScreenContainer footer={<Button label="Save animal" fullWidth loading={saving} disabled={!canSave} onPress={handleSave} />}>
-      <TextField label="Tag number" required value={tagNumber} onChangeText={setTagNumber} placeholder="e.g. 042" autoCapitalize="characters" />
+      <TextField
+        label="Tag number"
+        required
+        value={tagNumber}
+        onChangeText={setTagNumber}
+        placeholder="e.g. 042"
+        autoCapitalize="characters"
+      />
       <TextField label="Name" value={name} onChangeText={setName} placeholder="Optional" />
 
-      <Text className="text-base font-medium text-ink-700">
-        Species<Text className="text-danger-500"> *</Text>
-      </Text>
-      <ChipGroup options={SPECIES_LIST} value={species} onChange={setSpecies} />
-
-      <Text className="text-base font-medium text-ink-700">
-        Gender<Text className="text-danger-500"> *</Text>
-      </Text>
-      <ChipGroup options={GENDER_OPTIONS} value={gender} onChange={setGender} />
+      <SelectGroup label="Species" required options={SPECIES_OPTIONS} value={species} onChange={setSpecies} />
+      <SelectGroup label="Sex" required options={GENDER_OPTIONS} value={gender} onChange={setGender} />
 
       <TextField label="Breed" value={breed} onChangeText={setBreed} placeholder="Optional" />
 
@@ -82,7 +89,7 @@ export default function NewAnimalScreen() {
       <SelectedAnimalField label="Dam (mother)" animal={dam} onPress={() => setPickerOpen('dam')} />
       <SelectedAnimalField label="Sire (father)" animal={sire} onPress={() => setPickerOpen('sire')} />
 
-      {error ? <Text className="text-base text-danger-500">{error}</Text> : null}
+      {error ? <Text className="text-callout text-danger">{error}</Text> : null}
 
       <AnimalSearchModal
         visible={pickerOpen === 'dam'}

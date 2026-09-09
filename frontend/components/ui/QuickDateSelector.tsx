@@ -1,7 +1,15 @@
 import { useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { QUICK_DATE_OPTIONS, formatDateForDisplay, getRelativeDateIso, isSameDayAsOffset } from '@/utils/livestockRules';
+import { Ionicons } from '@expo/vector-icons';
+import { useColors, useIsDark } from '@/theme/colors';
+import {
+  QUICK_DATE_OPTIONS,
+  QUICK_FUTURE_DATE_OPTIONS,
+  formatDateForDisplay,
+  getRelativeDateIso,
+  isSameDayAsOffset,
+} from '@/utils/livestockRules';
 
 interface QuickDateSelectorProps {
   label: string;
@@ -9,55 +17,68 @@ interface QuickDateSelectorProps {
   onChange: (iso: string) => void;
   /** Adds an "Unknown" chip that clears the value to an empty string. */
   allowUnknown?: boolean;
+  /**
+   * 'past' (the default) is for recording something that already happened and refuses future
+   * dates; 'future' is for scheduling and refuses past ones.
+   */
+  direction?: 'past' | 'future';
 }
 
-export function QuickDateSelector({ label, valueIso, onChange, allowUnknown }: QuickDateSelectorProps) {
+function DateChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      className={`h-11 items-center justify-center rounded-pill border px-4 ${
+        selected ? 'border-brand bg-brand' : 'border-line bg-surface active:bg-sunken'
+      }`}
+    >
+      <Text className={`text-callout font-sans-medium ${selected ? 'text-on-brand' : 'text-secondary'}`}>{label}</Text>
+    </Pressable>
+  );
+}
+
+export function QuickDateSelector({ label, valueIso, onChange, allowUnknown, direction = 'past' }: QuickDateSelectorProps) {
+  const colors = useColors();
+  const isDark = useIsDark();
   const [pickerOpen, setPickerOpen] = useState(false);
   const isUnknown = valueIso === '';
-  const matchesQuickOption = !isUnknown && QUICK_DATE_OPTIONS.some((option) => isSameDayAsOffset(valueIso, option.offsetDays));
+  const options = direction === 'future' ? QUICK_FUTURE_DATE_OPTIONS : QUICK_DATE_OPTIONS;
+  const matchesQuickOption = !isUnknown && options.some((option) => isSameDayAsOffset(valueIso, option.offsetDays));
 
   return (
-    <View className="gap-1.5">
-      <Text className="text-base font-medium text-ink-700">{label}</Text>
+    <View className="gap-2">
+      <Text className="text-label font-sans-semibold uppercase text-tertiary">{label}</Text>
       <View className="flex-row flex-wrap gap-2">
-        {allowUnknown ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ selected: isUnknown }}
-            onPress={() => onChange('')}
-            className={`min-h-touch items-center justify-center rounded-full border-2 px-4 ${
-              isUnknown ? 'border-brand-500 bg-brand-500' : 'border-ink-100 bg-white'
-            }`}
-          >
-            <Text className={`text-base font-medium ${isUnknown ? 'text-white' : 'text-ink-700'}`}>Unknown</Text>
-          </Pressable>
-        ) : null}
-        {QUICK_DATE_OPTIONS.map((option) => {
-          const selected = !isUnknown && isSameDayAsOffset(valueIso, option.offsetDays);
-          return (
-            <Pressable
-              key={option.label}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              onPress={() => onChange(getRelativeDateIso(option.offsetDays))}
-              className={`min-h-touch items-center justify-center rounded-full border-2 px-4 ${
-                selected ? 'border-brand-500 bg-brand-500' : 'border-ink-100 bg-white'
-              }`}
-            >
-              <Text className={`text-base font-medium ${selected ? 'text-white' : 'text-ink-700'}`}>{option.label}</Text>
-            </Pressable>
-          );
-        })}
+        {allowUnknown ? <DateChip label="Unknown" selected={isUnknown} onPress={() => onChange('')} /> : null}
+        {options.map((option) => (
+          <DateChip
+            key={option.label}
+            label={option.label}
+            selected={!isUnknown && isSameDayAsOffset(valueIso, option.offsetDays)}
+            onPress={() => onChange(getRelativeDateIso(option.offsetDays))}
+          />
+        ))}
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ selected: !matchesQuickOption }}
+          accessibilityState={{ selected: !matchesQuickOption && !isUnknown }}
           onPress={() => setPickerOpen(true)}
-          className={`min-h-touch items-center justify-center rounded-full border-2 px-4 ${
-            !matchesQuickOption ? 'border-brand-500 bg-brand-500' : 'border-ink-100 bg-white'
+          className={`h-11 flex-row items-center gap-1.5 rounded-pill border px-4 ${
+            !matchesQuickOption && !isUnknown ? 'border-brand bg-brand' : 'border-line bg-surface active:bg-sunken'
           }`}
         >
-          <Text className={`text-base font-medium ${!matchesQuickOption ? 'text-white' : 'text-ink-700'}`}>
-            {!matchesQuickOption ? formatDateForDisplay(valueIso) : 'Pick date'}
+          <Ionicons
+            name="calendar-outline"
+            size={16}
+            color={!matchesQuickOption && !isUnknown ? colors.onBrand : colors.secondary}
+          />
+          <Text
+            className={`text-callout font-sans-medium ${
+              !matchesQuickOption && !isUnknown ? 'text-on-brand' : 'text-secondary'
+            }`}
+          >
+            {!matchesQuickOption && !isUnknown ? formatDateForDisplay(valueIso) : 'Pick date'}
           </Text>
         </Pressable>
       </View>
@@ -66,7 +87,9 @@ export function QuickDateSelector({ label, valueIso, onChange, allowUnknown }: Q
           value={isUnknown ? new Date() : new Date(valueIso)}
           mode="date"
           display={Platform.OS === 'ios' ? 'inline' : 'default'}
-          maximumDate={new Date()}
+          themeVariant={isDark ? 'dark' : 'light'}
+          maximumDate={direction === 'past' ? new Date() : undefined}
+          minimumDate={direction === 'future' ? new Date() : undefined}
           onChange={(event, date) => {
             setPickerOpen(Platform.OS === 'ios');
             if (event.type === 'set' && date) {

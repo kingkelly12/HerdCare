@@ -1,8 +1,10 @@
 import { Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { PressableCard } from '@/components/ui/Card';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { PressableSurface } from '@/components/ui/Surface';
 import type { Animal } from '@/db/schema';
-import { SPECIES_EMOJI } from './speciesMeta';
+import { useColors } from '@/theme/colors';
+import { SpeciesAvatar } from './SpeciesIcon';
 import { StatusBadge } from './StatusBadge';
 
 interface AnimalListItemProps {
@@ -11,31 +13,53 @@ interface AnimalListItemProps {
   onLongPress?: () => void;
   selected?: boolean;
   selectionMode?: boolean;
+  /** Position in the list, used to stagger the entrance. */
+  index?: number;
 }
 
-export function AnimalListItem({ animal, onPress, onLongPress, selected, selectionMode }: AnimalListItemProps) {
+export function AnimalListItem({ animal, onPress, onLongPress, selected, selectionMode, index = 0 }: AnimalListItemProps) {
+  const colors = useColors();
+
   return (
-    <PressableCard onPress={onPress} onLongPress={onLongPress} className="flex-row items-center gap-3">
-      {selectionMode ? (
-        <Ionicons
-          name={selected ? 'checkmark-circle' : 'ellipse-outline'}
-          size={28}
-          color={selected ? '#2C7A3D' : '#94A190'}
-        />
-      ) : (
-        <Text className="text-3xl">{SPECIES_EMOJI[animal.species]}</Text>
-      )}
-      <View className="flex-1 gap-1">
-        <View className="flex-row items-center gap-2">
-          <Text className="text-lg font-semibold text-ink-900">{animal.tagNumber}</Text>
-          {animal.name ? <Text className="text-base text-ink-500">· {animal.name}</Text> : null}
+    <Animated.View
+      // Capped so rows far down a long herd list still appear promptly.
+      entering={FadeInDown.duration(260).delay(Math.min(index, 8) * 35)}
+    >
+      <PressableSurface
+        onPress={onPress}
+        onLongPress={onLongPress}
+        level={selected ? 'floating' : 'raised'}
+        className={`flex-row items-center gap-3 p-3 ${selected ? 'border-brand' : ''}`}
+      >
+        {selectionMode ? (
+          <View className="h-11 w-11 items-center justify-center">
+            <Ionicons
+              name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+              size={28}
+              color={selected ? colors.brand : colors.tertiary}
+            />
+          </View>
+        ) : (
+          <SpeciesAvatar species={animal.species} size={22} tone={animal.status === 'in_withdrawal' ? 'warn' : 'default'} />
+        )}
+
+        <View className="flex-1 gap-0.5">
+          <View className="flex-row items-baseline gap-2">
+            <Text className="text-body font-sans-semibold text-primary">{animal.tagNumber}</Text>
+            {animal.name ? (
+              <Text numberOfLines={1} className="flex-1 text-callout text-secondary">
+                {animal.name}
+              </Text>
+            ) : null}
+          </View>
+          <Text className="text-label capitalize text-tertiary">
+            {animal.breed ? `${animal.breed} · ` : ''}
+            {animal.species} · {animal.gender}
+          </Text>
         </View>
-        <Text className="text-sm capitalize text-ink-500">
-          {animal.breed ? `${animal.breed} ` : ''}
-          {animal.species} · {animal.gender}
-        </Text>
-      </View>
-      <StatusBadge status={animal.status} />
-    </PressableCard>
+
+        <StatusBadge status={animal.status} />
+      </PressableSurface>
+    </Animated.View>
   );
 }

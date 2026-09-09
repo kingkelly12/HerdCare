@@ -1,18 +1,12 @@
-import type { AnimalStatus, Species } from '@/db/schema';
+import type { AnimalStatus } from '@/db/schema';
 
-export const SPECIES_EMOJI: Record<Species, string> = {
-  cow: '🐄',
-  goat: '🐐',
-  sheep: '🐑',
-  pig: '🐖',
-  horse: '🐎',
-  donkey: '🫏',
-  dog: '🐕',
-};
-
-export const STATUS_META: Record<AnimalStatus, { label: string; className: string }> = {
-  active: { label: 'Active', className: 'bg-brand-100 text-brand-700' },
-  sold: { label: 'Sold', className: 'bg-ink-100 text-ink-700' },
-  deceased: { label: 'Deceased', className: 'bg-ink-100 text-ink-500' },
-  in_withdrawal: { label: 'In withdrawal', className: 'bg-warning-100 text-warning-600' },
+/**
+ * Status pill styling. Colours come from semantic tokens so both themes are covered without
+ * per-component dark variants.
+ */
+export const STATUS_META: Record<AnimalStatus, { label: string; container: string; text: string }> = {
+  active: { label: 'Active', container: 'bg-brand-soft', text: 'text-brand' },
+  sold: { label: 'Sold', container: 'bg-sunken', text: 'text-secondary' },
+  deceased: { label: 'Deceased', container: 'bg-sunken', text: 'text-tertiary' },
+  in_withdrawal: { label: 'Withdrawal', container: 'bg-warn-soft', text: 'text-warn' },
 };

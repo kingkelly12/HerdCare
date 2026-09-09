@@ -1,3 +1,85 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Semantic colour tokens, defined once per theme.
+ *
+ * Components reference roles (`bg-surface`, `text-secondary`) rather than raw colours, so dark
+ * mode is a matter of redefining these variables — not sprinkling `dark:` on every element.
+ * Values are space-separated RGB channels so Tailwind's `/opacity` modifier keeps working.
+ *
+ * The neutrals are deliberately warm: a hint of ochre through the greys keeps an outdoor,
+ * agricultural feel and stops the interface reading as clinical the way pure greys do.
+ */
+@layer base {
+  :root {
+    /* Grounds and surfaces — three elevation levels, not one repeated card. */
+    --color-canvas: 247 244 238; /* the page itself */
+    --color-surface: 255 253 250; /* resting content sitting on the canvas */
+    --color-raised: 255 255 255; /* lifted: sheets, the active row, the FAB */
+    --color-sunken: 240 235 226; /* recessed: input wells, track backgrounds */
+
+    /* Text */
+    --color-primary-text: 28 26 22;
+    --color-secondary-text: 92 86 74;
+    --color-tertiary-text: 140 132 118;
+    --color-inverse-text: 255 253 250;
+
+    /* Lines */
+    --color-border: 226 219 207;
+    --color-border-strong: 202 192 176;
+
+    /* Brand — pasture green */
+    --color-brand: 44 122 61;
+    --color-brand-strong: 32 96 47;
+    --color-brand-soft: 232 242 233;
+    --color-on-brand: 255 255 255;
+
+    /* Earth — secondary accent for routine/husbandry surfaces */
+    --color-earth: 140 106 54;
+    --color-earth-soft: 245 236 221;
+
+    /* Status */
+    --color-warn: 176 111 8;
+    --color-warn-soft: 252 240 218;
+    --color-danger: 190 40 44;
+    --color-danger-soft: 252 230 229;
+
+    --color-shadow: 40 30 15;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      /* Warm charcoals rather than blue-blacks, to stay in the same family as the light theme. */
+      --color-canvas: 19 18 16;
+      --color-surface: 30 28 25;
+      --color-raised: 40 37 33;
+      --color-sunken: 24 22 20;
+
+      --color-primary-text: 245 241 234;
+      --color-secondary-text: 176 168 156;
+      --color-tertiary-text: 130 122 111;
+      --color-inverse-text: 24 22 20;
+
+      --color-border: 56 52 46;
+      --color-border-strong: 78 72 64;
+
+      /* Lifted so the green keeps its punch against a dark ground. */
+      --color-brand: 92 176 108;
+      --color-brand-strong: 122 198 137;
+      --color-brand-soft: 33 48 36;
+      --color-on-brand: 16 32 20;
+
+      --color-earth: 196 156 96;
+      --color-earth-soft: 51 42 30;
+
+      --color-warn: 232 170 66;
+      --color-warn-soft: 56 43 20;
+      --color-danger: 240 106 108;
+      --color-danger-soft: 60 28 29;
+
+      --color-shadow: 0 0 0;
+    }
+  }
+}

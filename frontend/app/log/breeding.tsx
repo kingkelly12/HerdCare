@@ -4,8 +4,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { eq } from 'drizzle-orm';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
-import { Card } from '@/components/ui/Card';
-import { ChipGroup } from '@/components/ui/Chip';
+import { Callout } from '@/components/ui/Callout';
+import { SelectGroup } from '@/components/ui/SelectGroup';
 import { TextField } from '@/components/ui/TextField';
 import { QuickDateSelector } from '@/components/ui/QuickDateSelector';
 import { Button } from '@/components/ui/Button';
@@ -15,6 +15,7 @@ import { db } from '@/db/client';
 import { animals, BREEDING_EVENT_TYPES, breedingEvents, type Animal, type BreedingEventType } from '@/db/schema';
 import { calculateExpectedDueDate, formatDateForDisplay, getRelativeDateIso } from '@/utils/livestockRules';
 import { notifySaved } from '@/lib/haptics';
+import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 
 const EVENT_TYPE_OPTIONS = BREEDING_EVENT_TYPES.map((type) => ({ value: type, label: type.replace(/_/g, ' ') }));
 const DUE_DATE_EVENT_TYPES: BreedingEventType[] = ['served_natural', 'served_ai', 'induced'];
@@ -58,6 +59,8 @@ export default function LogBreedingScreen() {
         notes: notes.trim() || null,
       });
       notifySaved();
+      // A service sets up a heat-return watch and a due date; other events may retire them.
+      await refreshRemindersAndNotifications();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this event.');
@@ -70,24 +73,17 @@ export default function LogBreedingScreen() {
     <ScreenContainer footer={<Button label="Save event" fullWidth loading={saving} disabled={!canSave} onPress={handleSave} />}>
       <SelectedAnimalField label="Animal" animal={selectedAnimal} onPress={() => setPickerOpen(true)} required />
 
-      <Text className="text-base font-medium text-ink-700">
-        Event type<Text className="text-danger-500"> *</Text>
-      </Text>
-      <ChipGroup options={EVENT_TYPE_OPTIONS} value={eventType} onChange={setEventType} />
+      <SelectGroup label="Event type" required options={EVENT_TYPE_OPTIONS} value={eventType} onChange={setEventType} />
 
       <QuickDateSelector label="Event date" valueIso={eventDate} onChange={setEventDate} />
 
-      {expectedDueDate ? (
-        <Card className="bg-brand-50">
-          <Text className="text-base font-semibold text-brand-700">Expected due date: {formatDateForDisplay(expectedDueDate)}</Text>
-        </Card>
-      ) : null}
+      {expectedDueDate ? <Callout>{`Expected due ${formatDateForDisplay(expectedDueDate)}`}</Callout> : null}
 
       <TextField label="Sire (ID or code)" value={sireCode} onChangeText={setSireCode} placeholder="Optional" />
       <TextField label="Technician" value={technician} onChangeText={setTechnician} placeholder="Optional" />
       <TextField label="Notes" value={notes} onChangeText={setNotes} placeholder="Optional" multiline numberOfLines={3} />
 
-      {error ? <Text className="text-base text-danger-500">{error}</Text> : null}
+      {error ? <Text className="text-callout text-danger">{error}</Text> : null}
 
       <AnimalSearchModal
         visible={pickerOpen}

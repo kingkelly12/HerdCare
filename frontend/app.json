@@ -7,7 +7,6 @@
     "icon": "./assets/icon.png",
     "scheme": "herdcare",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.herdcare.app"
@@ -47,6 +46,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6820787e-534e-492b-a221-c0fb4568c3c1"
+      }
+    },
+    "owner": "mogul1"
   }
 }

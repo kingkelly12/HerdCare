@@ -1,65 +1,65 @@
 /** @type {import('tailwindcss').Config} */
+
+// Colours resolve through CSS variables declared in global.css, so a single token swap drives
+// the whole dark theme. `<alpha-value>` keeps utilities like `bg-brand/10` working.
+const token = (name) => `rgb(var(--color-${name}) / <alpha-value>)`;
+
 module.exports = {
   content: ['./app/**/*.{js,jsx,ts,tsx}', './components/**/*.{js,jsx,ts,tsx}'],
   presets: [require('nativewind/preset')],
+  darkMode: 'media',
   theme: {
     extend: {
       colors: {
-        // High-contrast palette tuned for outdoor / bright-sunlight legibility.
-        brand: {
-          50: '#EAF5EC',
-          100: '#C9E6CE',
-          200: '#9FD1A8',
-          300: '#6FB87D',
-          400: '#469E5A',
-          500: '#2C7A3D', // primary actions
-          600: '#20602F',
-          700: '#194B25',
-          800: '#12371B',
-          900: '#0B2412',
-        },
-        earth: {
-          50: '#FAF6F0',
-          100: '#F0E6D8',
-          200: '#DFC9A8',
-          300: '#C9A876',
-          400: '#B08A4E',
-          500: '#8C6A36',
-          600: '#6E5229',
-          700: '#513C1D',
-          800: '#362813',
-          900: '#1E160A',
-        },
-        warning: {
-          100: '#FFF1D6',
-          400: '#F5A524',
-          500: '#DB8A0B',
-          600: '#B06F08',
-        },
-        danger: {
-          100: '#FBDADA',
-          400: '#E5484D',
-          500: '#CE2C31',
-          600: '#A81E22',
-        },
-        ink: {
-          50: '#F5F8F4',
-          900: '#131A14',
-          700: '#33422F',
-          500: '#5C6B58',
-          300: '#94A190',
-          100: '#E4E9E1',
-        },
+        canvas: token('canvas'),
+        surface: token('surface'),
+        raised: token('raised'),
+        sunken: token('sunken'),
+        line: token('border'),
+        'line-strong': token('border-strong'),
+        primary: token('primary-text'),
+        secondary: token('secondary-text'),
+        tertiary: token('tertiary-text'),
+        inverse: token('inverse-text'),
+        brand: token('brand'),
+        'brand-strong': token('brand-strong'),
+        'brand-soft': token('brand-soft'),
+        'on-brand': token('on-brand'),
+        earth: token('earth'),
+        'earth-soft': token('earth-soft'),
+        warn: token('warn'),
+        'warn-soft': token('warn-soft'),
+        danger: token('danger'),
+        'danger-soft': token('danger-soft'),
+      },
+      fontFamily: {
+        // React Native cannot synthesise weights from one file, so each weight is its own family.
+        // Named to avoid colliding with Tailwind's `font-medium`/`font-bold` weight utilities.
+        sans: ['Inter_400Regular'],
+        'sans-medium': ['Inter_500Medium'],
+        'sans-semibold': ['Inter_600SemiBold'],
+        'sans-bold': ['Inter_700Bold'],
       },
       fontSize: {
-        // Bumped baseline sizes for dusty/bright field conditions.
-        base: ['17px', '24px'],
-        lg: ['20px', '28px'],
-        xl: ['24px', '30px'],
-        '2xl': ['30px', '36px'],
+        // Sizes stay large for gloved hands and glare; tracking tightens as size grows, which is
+        // what stops big text reading as merely "zoomed".
+        display: ['34px', { lineHeight: '38px', letterSpacing: '-0.9px' }],
+        title: ['26px', { lineHeight: '31px', letterSpacing: '-0.6px' }],
+        headline: ['20px', { lineHeight: '26px', letterSpacing: '-0.3px' }],
+        body: ['17px', { lineHeight: '24px', letterSpacing: '-0.1px' }],
+        callout: ['15px', { lineHeight: '21px', letterSpacing: '0px' }],
+        label: ['13px', { lineHeight: '18px', letterSpacing: '0.1px' }],
+        caption: ['12px', { lineHeight: '16px', letterSpacing: '0.3px' }],
+        // Metric readouts: large, tight, and unmistakable at a glance.
+        metric: ['30px', { lineHeight: '34px', letterSpacing: '-1px' }],
       },
       spacing: {
         touch: '48px',
+      },
+      borderRadius: {
+        card: '18px',
+        field: '14px',
+        pill: '999px',
       },
     },
   },

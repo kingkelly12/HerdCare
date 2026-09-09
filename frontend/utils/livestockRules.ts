@@ -70,9 +70,20 @@ export const SPECIES_LIST = Object.entries(SPECIES_RULES).map(([value, rule]) =>
   label: rule.label,
 }));
 
+// Every calendar-day calculation below works in the device's local time, matching what
+// `formatDateForDisplay` shows the farmer. Instants are still stored as UTC ISO strings;
+// only the notion of "which day is this" is local. Mixing the two (UTC arithmetic against
+// local display) puts due-date countdowns and withdrawal windows off by a day.
 export function addDaysIso(iso: string, days: number): string {
   const date = new Date(iso);
-  date.setUTCDate(date.getUTCDate() + days);
+  date.setDate(date.getDate() + days);
+  return date.toISOString();
+}
+
+/** Local midnight at the start of today, as an ISO instant — the lower bound for "on or after today". */
+export function startOfTodayIso(): string {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
   return date.toISOString();
 }
 
@@ -107,18 +118,26 @@ export const QUICK_DATE_OPTIONS: QuickDateOption[] = [
   { label: '-7 days', offsetDays: -7 },
 ];
 
+/** Quick offsets for choosing a date ahead, e.g. when a repeating task first falls due. */
+export const QUICK_FUTURE_DATE_OPTIONS: QuickDateOption[] = [
+  { label: 'Today', offsetDays: 0 },
+  { label: 'Tomorrow', offsetDays: 1 },
+  { label: '+1 week', offsetDays: 7 },
+  { label: '+1 month', offsetDays: 30 },
+];
+
 /** Returns an ISO string for "now + offsetDays", used by the quick relative-date buttons. */
 export function getRelativeDateIso(offsetDays: number): string {
   const date = new Date();
-  date.setUTCDate(date.getUTCDate() + offsetDays);
+  date.setDate(date.getDate() + offsetDays);
   return date.toISOString();
 }
 
-/** True when `iso` falls on the same calendar day as `getRelativeDateIso(offsetDays)`. */
+/** True when `iso` falls on the same local calendar day as `getRelativeDateIso(offsetDays)`. */
 export function isSameDayAsOffset(iso: string, offsetDays: number): boolean {
   const a = new Date(iso);
   const b = new Date(getRelativeDateIso(offsetDays));
-  return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate();
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -129,12 +148,13 @@ export function formatDateForDisplay(iso: string | null | undefined): string {
   return DATE_FORMATTER.format(new Date(iso));
 }
 
-/** Whole-day difference between an ISO date and today (positive = in the future). */
+/** Whole local-calendar-day difference between an ISO date and today (positive = in the future). */
 export function daysFromToday(iso: string | null | undefined): number | null {
   if (!iso) return null;
   const target = new Date(iso);
+  target.setHours(0, 0, 0, 0);
   const today = new Date();
-  const utcTarget = Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), target.getUTCDate());
-  const utcToday = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-  return Math.round((utcTarget - utcToday) / 86_400_000);
+  today.setHours(0, 0, 0, 0);
+  // Rounding absorbs the ±1h that a daylight-saving shift puts into the span.
+  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
 }

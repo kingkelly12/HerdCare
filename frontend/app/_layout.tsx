@@ -3,52 +3,104 @@ import { useEffect } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { Stack, ThemeProvider, DarkTheme, DefaultTheme } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
 import { db } from '@/db/client';
+import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
+import { useColors, useIsDark } from '@/theme/colors';
 import migrations from '@/drizzle/migrations';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const { success, error } = useMigrations(db, migrations);
+  const colors = useColors();
+  const isDark = useIsDark();
+
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
+
+  const ready = success && fontsLoaded;
 
   useEffect(() => {
-    if (success || error) {
+    if (ready || error) {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [success, error]);
+  }, [ready, error]);
+
+  useEffect(() => {
+    if (success) {
+      refreshRemindersAndNotifications().catch(() => {});
+    }
+  }, [success]);
 
   if (error) {
     return (
-      <View className="flex-1 items-center justify-center gap-2 bg-ink-50 p-6">
-        <Text className="text-lg font-semibold text-danger-500">Could not open the local database</Text>
-        <Text className="text-center text-base text-ink-500">{error.message}</Text>
+      <View className="flex-1 items-center justify-center gap-2 bg-canvas p-6">
+        <Text className="text-headline font-sans-semibold text-danger">Could not open the local database</Text>
+        <Text className="text-center text-callout text-secondary">{error.message}</Text>
       </View>
     );
   }
 
-  if (!success) {
+  if (!ready) {
     return (
-      <View className="flex-1 items-center justify-center bg-ink-50">
-        <ActivityIndicator size="large" color="#2C7A3D" />
+      <View className="flex-1 items-center justify-center bg-canvas">
+        <ActivityIndicator size="large" color={colors.brand} />
       </View>
     );
   }
+
+  // Navigation chrome (headers, card backgrounds) is themed from the same tokens as the content,
+  // so a dark device does not get light headers over dark screens.
+  const navTheme = {
+    ...(isDark ? DarkTheme : DefaultTheme),
+    colors: {
+      ...(isDark ? DarkTheme : DefaultTheme).colors,
+      primary: colors.brand,
+      background: colors.canvas,
+      card: colors.surface,
+      text: colors.primary,
+      border: colors.border,
+    },
+  };
 
   return (
     <GestureHandlerRootView className="flex-1">
       <SafeAreaProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="animal/[id]" options={{ headerShown: true, title: '' }} />
-          <Stack.Screen name="animal/new" options={{ presentation: 'modal', headerShown: true, title: 'New animal' }} />
-          <Stack.Screen name="log/index" options={{ presentation: 'modal', headerShown: true, title: 'Log an event' }} />
-          <Stack.Screen name="log/breeding" options={{ headerShown: true, title: 'Log breeding event' }} />
-          <Stack.Screen name="log/health" options={{ headerShown: true, title: 'Log treatment' }} />
-          <Stack.Screen name="log/birth" options={{ headerShown: true, title: 'Log birth' }} />
-        </Stack>
+        <ThemeProvider value={navTheme}>
+          <StatusBar style={isDark ? 'light' : 'dark'} />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              headerTitleStyle: { fontFamily: 'Inter_600SemiBold', color: colors.primary },
+              headerShadowVisible: false,
+              contentStyle: { backgroundColor: colors.canvas },
+            }}
+          >
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="animal/[id]" options={{ headerShown: true, title: '' }} />
+            <Stack.Screen name="animal/new" options={{ presentation: 'modal', headerShown: true, title: 'New animal' }} />
+            {/* The log forms replace the chooser inside the same modal, so they declare the same
+                presentation — one `router.back()` then dismisses the whole logging flow. */}
+            <Stack.Screen name="log/index" options={{ presentation: 'modal', headerShown: true, title: 'Log an event' }} />
+            <Stack.Screen name="log/breeding" options={{ presentation: 'modal', headerShown: true, title: 'Log breeding event' }} />
+            <Stack.Screen name="log/health" options={{ presentation: 'modal', headerShown: true, title: 'Log treatment' }} />
+            <Stack.Screen name="log/birth" options={{ presentation: 'modal', headerShown: true, title: 'Log birth' }} />
+            <Stack.Screen name="reminders" options={{ headerShown: true, title: 'Reminders' }} />
+            <Stack.Screen
+              name="schedule/new"
+              options={{ presentation: 'modal', headerShown: true, title: 'Repeating task' }}
+            />
+          </Stack>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

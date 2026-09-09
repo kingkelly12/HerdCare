@@ -1,26 +1,43 @@
+import { useState } from 'react';
 import { Text, TextInput, View, type TextInputProps } from 'react-native';
+import { useColors } from '@/theme/colors';
 
 interface TextFieldProps extends TextInputProps {
   label: string;
   required?: boolean;
   error?: string;
+  hint?: string;
 }
 
-export function TextField({ label, required, error, className, ...props }: TextFieldProps) {
+export function TextField({ label, required, error, hint, className, onFocus, onBlur, ...props }: TextFieldProps) {
+  const colors = useColors();
+  const [focused, setFocused] = useState(false);
+
+  const borderClass = error ? 'border-danger' : focused ? 'border-brand' : 'border-line';
+
   return (
-    <View className="gap-1.5">
-      <Text className="text-base font-medium text-ink-700">
+    <View className="gap-2">
+      <Text className="text-label font-sans-semibold uppercase text-tertiary">
         {label}
-        {required ? <Text className="text-danger-500"> *</Text> : null}
+        {required ? <Text className="text-danger"> *</Text> : null}
       </Text>
       <TextInput
-        placeholderTextColor="#94A190"
-        className={`min-h-touch rounded-xl border-2 bg-white px-4 py-3 text-lg text-ink-900 ${
-          error ? 'border-danger-400' : 'border-ink-100'
-        } ${className ?? ''}`}
+        placeholderTextColor={colors.tertiary}
+        onFocus={(e) => {
+          setFocused(true);
+          onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          onBlur?.(e);
+        }}
+        className={`min-h-touch rounded-field border bg-surface px-4 py-3 text-body font-sans text-primary ${borderClass} ${
+          className ?? ''
+        }`}
         {...props}
       />
-      {error ? <Text className="text-sm text-danger-500">{error}</Text> : null}
+      {error ? <Text className="text-label text-danger">{error}</Text> : null}
+      {hint && !error ? <Text className="text-label text-tertiary">{hint}</Text> : null}
     </View>
   );
 }

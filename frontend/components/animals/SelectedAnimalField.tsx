@@ -1,8 +1,9 @@
 import { Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { PressableCard } from '@/components/ui/Card';
+import { PressableSurface } from '@/components/ui/Surface';
 import type { Animal } from '@/db/schema';
-import { SPECIES_EMOJI } from './speciesMeta';
+import { useColors } from '@/theme/colors';
+import { SpeciesAvatar } from './SpeciesIcon';
 
 interface SelectedAnimalFieldProps {
   label: string;
@@ -12,26 +13,36 @@ interface SelectedAnimalFieldProps {
 }
 
 export function SelectedAnimalField({ label, animal, onPress, required }: SelectedAnimalFieldProps) {
+  const colors = useColors();
+
   return (
-    <View className="gap-1.5">
-      <Text className="text-base font-medium text-ink-700">
+    <View className="gap-2">
+      <Text className="text-label font-sans-semibold uppercase text-tertiary">
         {label}
-        {required ? <Text className="text-danger-500"> *</Text> : null}
+        {required ? <Text className="text-danger"> *</Text> : null}
       </Text>
-      <PressableCard onPress={onPress} className="flex-row items-center justify-between">
+      <PressableSurface
+        onPress={onPress}
+        className={`min-h-touch flex-row items-center justify-between p-3 ${animal ? 'border-brand' : ''}`}
+      >
         {animal ? (
           <View className="flex-row items-center gap-3">
-            <Text className="text-2xl">{SPECIES_EMOJI[animal.species]}</Text>
+            <SpeciesAvatar species={animal.species} size={20} />
             <View>
-              <Text className="text-lg font-semibold text-ink-900">{animal.tagNumber}</Text>
-              {animal.name ? <Text className="text-sm text-ink-500">{animal.name}</Text> : null}
+              <Text className="text-body font-sans-semibold text-primary">{animal.tagNumber}</Text>
+              {animal.name ? <Text className="text-label text-tertiary">{animal.name}</Text> : null}
             </View>
           </View>
         ) : (
-          <Text className="text-lg text-ink-500">Tap to select an animal</Text>
+          <View className="flex-row items-center gap-3">
+            <View className="h-10 w-10 items-center justify-center rounded-pill bg-sunken">
+              <Ionicons name="search" size={18} color={colors.tertiary} />
+            </View>
+            <Text className="text-body text-tertiary">Tap to choose</Text>
+          </View>
         )}
-        <Ionicons name="chevron-forward" size={22} color="#5C6B58" />
-      </PressableCard>
+        <Ionicons name="chevron-forward" size={20} color={colors.tertiary} />
+      </PressableSurface>
     </View>
   );
 }

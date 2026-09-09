@@ -5,6 +5,11 @@ module.exports = function (api) {
       ['babel-preset-expo', { jsxImportSource: 'nativewind' }],
       'nativewind/babel',
     ],
-    plugins: [['inline-import', { extensions: ['.sql'] }], 'react-native-reanimated/plugin'],
+    plugins: [
+      ['inline-import', { extensions: ['.sql'] }],
+      // Reanimated 4 moved the worklet transform here; `react-native-reanimated/plugin` is now
+      // only a shim that re-exports it. Must stay last.
+      'react-native-worklets/plugin',
+    ],
   };
 };

@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { FlatList, Modal, Pressable, Text, View } from 'react-native';
+import { FlatList, Modal, Pressable, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
-import { and, eq, or, like } from 'drizzle-orm';
+import { and, eq, like, or } from 'drizzle-orm';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { TextField } from '@/components/ui/TextField';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { PressableSurface } from '@/components/ui/Surface';
 import { db } from '@/db/client';
 import { animals, type Animal, type Gender } from '@/db/schema';
-import { SPECIES_EMOJI } from './speciesMeta';
+import { useColors } from '@/theme/colors';
+import { SpeciesAvatar } from './SpeciesIcon';
+import { StatusBadge } from './StatusBadge';
 
 interface AnimalSearchModalProps {
   visible: boolean;
@@ -19,7 +22,15 @@ interface AnimalSearchModalProps {
   onClose: () => void;
 }
 
-export function AnimalSearchModal({ visible, title = 'Select animal', genderFilter, excludeId, onSelect, onClose }: AnimalSearchModalProps) {
+export function AnimalSearchModal({
+  visible,
+  title = 'Select animal',
+  genderFilter,
+  excludeId,
+  onSelect,
+  onClose,
+}: AnimalSearchModalProps) {
+  const colors = useColors();
   const [search, setSearch] = useState('');
 
   const conditions = [];
@@ -40,47 +51,62 @@ export function AnimalSearchModal({ visible, title = 'Select animal', genderFilt
   const results = (data ?? []).filter((animal) => animal.id !== excludeId);
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView className="flex-1 bg-ink-50">
-        <View className="flex-row items-center justify-between p-4">
-          <Text className="text-xl font-bold text-ink-900">{title}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} className="h-10 w-10 items-center justify-center">
-            <Ionicons name="close" size={26} color="#131A14" />
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose} presentationStyle="pageSheet">
+      <SafeAreaView className="flex-1 bg-canvas">
+        <View className="flex-row items-center justify-between px-4 pb-2 pt-4">
+          <Text className="text-title font-sans-bold text-primary">{title}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            onPress={onClose}
+            className="h-11 w-11 items-center justify-center rounded-pill bg-sunken active:opacity-70"
+          >
+            <Ionicons name="close" size={22} color={colors.primary} />
           </Pressable>
         </View>
-        <View className="px-4 pb-2">
-          <TextField
-            label="Search"
-            placeholder="Search by tag or name"
-            value={search}
-            onChangeText={setSearch}
-            autoCapitalize="none"
-            autoFocus
-          />
+
+        <View className="px-4 pb-3">
+          <View className="min-h-touch flex-row items-center gap-2 rounded-field border border-line bg-surface px-3">
+            <Ionicons name="search" size={20} color={colors.tertiary} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search tag or name"
+              placeholderTextColor={colors.tertiary}
+              autoCapitalize="characters"
+              autoFocus
+              className="flex-1 py-3 text-body font-sans text-primary"
+            />
+          </View>
         </View>
+
         <FlatList
           data={results}
           keyExtractor={(item) => item.id}
-          contentContainerClassName="gap-2 p-4 pt-2"
+          contentContainerClassName="gap-2 px-4 pb-8"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
           ListEmptyComponent={<EmptyState icon="search-outline" title="No matching animals" />}
-          renderItem={({ item }) => (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                onSelect(item);
-                onClose();
-              }}
-              className="min-h-touch flex-row items-center gap-3 rounded-2xl border border-ink-100 bg-white p-4"
-            >
-              <Text className="text-2xl">{SPECIES_EMOJI[item.species]}</Text>
-              <View>
-                <Text className="text-lg font-semibold text-ink-900">{item.tagNumber}</Text>
-                <Text className="text-sm capitalize text-ink-500">
-                  {item.name ? `${item.name} · ` : ''}
-                  {item.species}
-                </Text>
-              </View>
-            </Pressable>
+          renderItem={({ item, index }) => (
+            <Animated.View entering={FadeInDown.duration(220).delay(Math.min(index, 8) * 30)}>
+              <PressableSurface
+                onPress={() => {
+                  onSelect(item);
+                  onClose();
+                }}
+                className="min-h-touch flex-row items-center gap-3 p-3"
+              >
+                <SpeciesAvatar species={item.species} size={20} />
+                <View className="flex-1">
+                  <Text className="text-body font-sans-semibold text-primary">{item.tagNumber}</Text>
+                  <Text className="text-label capitalize text-tertiary">
+                    {item.name ? `${item.name} · ` : ''}
+                    {item.species}
+                  </Text>
+                </View>
+                <StatusBadge status={item.status} />
+              </PressableSurface>
+            </Animated.View>
           )}
         />
       </SafeAreaView>

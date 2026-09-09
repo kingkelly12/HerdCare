@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react';
 import { Text } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
-import { Card } from '@/components/ui/Card';
+import { Callout } from '@/components/ui/Callout';
 import { TextField } from '@/components/ui/TextField';
 import { QuickDateSelector } from '@/components/ui/QuickDateSelector';
 import { Button } from '@/components/ui/Button';
@@ -12,8 +12,9 @@ import { AnimalSearchModal } from '@/components/animals/AnimalSearchModal';
 import { SelectedAnimalField } from '@/components/animals/SelectedAnimalField';
 import { db } from '@/db/client';
 import { animals, healthLogs, type Animal } from '@/db/schema';
-import { addDaysIso, formatDateForDisplay, getRelativeDateIso } from '@/utils/livestockRules';
+import { addDaysIso, formatDateForDisplay, getRelativeDateIso, startOfTodayIso } from '@/utils/livestockRules';
 import { notifySaved } from '@/lib/haptics';
+import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 
 export default function LogHealthScreen() {
   const params = useLocalSearchParams<{ animalId?: string }>();
@@ -54,10 +55,18 @@ export default function LogHealthScreen() {
         withdrawalEndDate,
         administeredBy: administeredBy.trim() || null,
       });
-      if (withdrawalDaysNumber > 0) {
-        await db.update(animals).set({ status: 'in_withdrawal', updatedAt: new Date().toISOString() }).where(eq(animals.id, selectedAnimal.id));
+      // Only flag an animal that is otherwise active, and only while the withdrawal is still
+      // running — a back-dated treatment whose period has already elapsed must not flag it.
+      const withdrawalStillRunning = withdrawalEndDate !== null && withdrawalEndDate >= startOfTodayIso();
+      if (withdrawalStillRunning) {
+        await db
+          .update(animals)
+          .set({ status: 'in_withdrawal', updatedAt: new Date().toISOString() })
+          .where(and(eq(animals.id, selectedAnimal.id), eq(animals.status, 'active')));
       }
       notifySaved();
+      // A withdrawal period becomes a "safe to sell again" reminder.
+      await refreshRemindersAndNotifications();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this treatment.');
@@ -82,14 +91,12 @@ export default function LogHealthScreen() {
       />
 
       {withdrawalEndDate ? (
-        <Card className="bg-warning-100">
-          <Text className="text-base font-semibold text-warning-600">Withdrawal until {formatDateForDisplay(withdrawalEndDate)}</Text>
-        </Card>
+        <Callout tone="warn">{`Do not sell milk or meat until ${formatDateForDisplay(withdrawalEndDate)}`}</Callout>
       ) : null}
 
       <TextField label="Administered by" value={administeredBy} onChangeText={setAdministeredBy} placeholder="Optional" />
 
-      {error ? <Text className="text-base text-danger-500">{error}</Text> : null}
+      {error ? <Text className="text-callout text-danger">{error}</Text> : null}
 
       <AnimalSearchModal visible={pickerOpen} title="Select animal" onSelect={setAnimal} onClose={() => setPickerOpen(false)} />
     </ScreenContainer>
