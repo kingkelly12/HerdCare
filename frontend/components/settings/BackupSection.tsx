@@ -5,7 +5,7 @@ import { Surface } from '@/components/ui/Surface';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { useColors } from '@/theme/colors';
-import { BackupFormatError, exportBackup, pickBackupFile, restoreBackup, type RestoreSummary } from '@/lib/backup';
+import { BackupFormatError, exportJsonBackup, exportPdfReport, pickBackupFile, restoreBackup, type RestoreSummary } from '@/lib/backup';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 import { notifySaved } from '@/lib/haptics';
 import { daysFromToday, formatDateForDisplay } from '@/utils/livestockRules';
@@ -24,25 +24,43 @@ function summarise(summary: RestoreSummary): string {
 
 export function BackupSection({ lastBackupAt, hasRecords }: { lastBackupAt: string | null; hasRecords: boolean }) {
   const colors = useColors();
-  const [busy, setBusy] = useState<'export' | 'restore' | null>(null);
+  const [busy, setBusy] = useState<'pdf' | 'json' | 'restore' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const daysSince = lastBackupAt ? Math.abs(daysFromToday(lastBackupAt) ?? 0) : null;
   const stale = hasRecords && (daysSince === null || daysSince >= 30);
 
-  async function handleExport() {
-    setBusy('export');
+  async function handleExportPdf() {
+    setBusy('pdf');
     setMessage(null);
     try {
-      const result = await exportBackup();
+      const result = await exportPdfReport();
       notifySaved();
       setMessage(
         result.shared
-          ? 'Backup created. Send it to yourself on WhatsApp, Drive or email so it survives this phone.'
-          : `Backup saved as ${result.fileName}.`,
+          ? 'Report created. Send it to yourself on WhatsApp, Drive or email so it survives this phone.'
+          : `Report saved as ${result.fileName}.`,
       );
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'Could not create the backup.');
+      setMessage(e instanceof Error ? e.message : 'Could not create the report.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleExportJson() {
+    setBusy('json');
+    setMessage(null);
+    try {
+      const result = await exportJsonBackup();
+      notifySaved();
+      setMessage(
+        result.shared
+          ? 'Technical backup created. Keep this one too — it is what Restore reads.'
+          : `Technical backup saved as ${result.fileName}.`,
+      );
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Could not create the technical backup.');
     } finally {
       setBusy(null);
     }
@@ -117,22 +135,47 @@ export function BackupSection({ lastBackupAt, hasRecords }: { lastBackupAt: stri
         <Button
           label="Back up my records"
           fullWidth
-          loading={busy === 'export'}
+          loading={busy === 'pdf'}
           disabled={busy !== null}
-          onPress={handleExport}
+          onPress={handleExportPdf}
           icon={<Ionicons name="share-outline" size={20} color={colors.onBrand} />}
+        />
+        <Text className="text-label text-tertiary">
+          A readable report — every animal and its recent events. Good for sharing with a vet or buyer.
+        </Text>
+      </Surface>
+
+      <Surface level="raised" className="gap-3 p-4">
+        <View className="flex-row items-start gap-3">
+          <Ionicons name="code-slash-outline" size={20} color={colors.secondary} />
+          <View className="flex-1">
+            <Text className="text-body font-sans-medium text-primary">Restoring on another phone</Text>
+            <Text className="text-label text-tertiary">
+              The report above is for reading, not restoring. Keep a technical backup too — it is the file "Restore"
+              actually reads.
+            </Text>
+          </View>
+        </View>
+
+        <Button
+          label="Save technical backup"
+          variant="secondary"
+          fullWidth
+          loading={busy === 'json'}
+          disabled={busy !== null}
+          onPress={handleExportJson}
         />
         <Button
           label="Restore from a backup"
-          variant="secondary"
+          variant="ghost"
           fullWidth
           loading={busy === 'restore'}
           disabled={busy !== null}
           onPress={handleRestore}
         />
-
-        {message ? <Text className="text-label text-secondary">{message}</Text> : null}
       </Surface>
+
+      {message ? <Text className="px-1 text-label text-secondary">{message}</Text> : null}
     </View>
   );
 }

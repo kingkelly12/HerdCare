@@ -59,8 +59,13 @@ export default function LogBreedingScreen() {
         notes: notes.trim() || null,
       });
       notifySaved();
-      // A service sets up a heat-return watch and a due date; other events may retire them.
-      await refreshRemindersAndNotifications();
+      // Deliberately not awaited: this reschedules notifications, which on the very first call
+      // can block on an OS permission dialog — that would leave the save button spinning for
+      // however long the farmer takes to respond to a prompt about something unrelated to
+      // whether their event was saved. The record is already safely in the database by this
+      // point, so the modal dismisses immediately and this finishes in the background; every
+      // screen that shows reminders is a live query and updates itself once it does.
+      refreshRemindersAndNotifications().catch(() => {});
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this event.');

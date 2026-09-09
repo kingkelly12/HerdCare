@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "HerdCare",
-    "slug": "HerdCare",
+    "slug": "herdcare",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -53,6 +53,13 @@
         "projectId": "6820787e-534e-492b-a221-c0fb4568c3c1"
       }
     },
-    "owner": "mogul1"
+    "owner": "mogul1",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/6820787e-534e-492b-a221-c0fb4568c3c1",
+      "checkAutomatically": "ON_LOAD"
+    }
   }
 }

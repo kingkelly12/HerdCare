@@ -42,14 +42,17 @@ export default function RemindersScreen() {
     return days > row.reminder.leadDays + 7;
   });
 
+  // Rescheduling notifications is not awaited in either handler — see the note in
+  // log/breeding.tsx. It can block on an OS permission dialog, and swiping through several
+  // reminders in a row would otherwise queue up that wait behind each card.
   async function handleDone(id: string) {
     await completeReminder(id);
-    await refreshRemindersAndNotifications();
+    refreshRemindersAndNotifications().catch(() => {});
   }
 
   async function handleDismiss(id: string) {
     await dismissReminder(id);
-    await refreshRemindersAndNotifications();
+    refreshRemindersAndNotifications().catch(() => {});
   }
 
   const sections = [

@@ -49,7 +49,9 @@ export default function NewScheduleScreen() {
         nextDueDate: firstDueDate,
       });
       notifySaved();
-      await refreshRemindersAndNotifications();
+      // Not awaited — see the note in log/breeding.tsx. Rescheduling notifications can block on
+      // an OS permission dialog, which must not stall confirmation that the task was saved.
+      refreshRemindersAndNotifications().catch(() => {});
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this task.');

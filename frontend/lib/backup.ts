@@ -1,6 +1,7 @@
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
+import * as Print from 'expo-print';
 import { inArray } from 'drizzle-orm';
 import { db } from '@/db/client';
 import {
@@ -17,6 +18,7 @@ import {
   type ReminderSchedule,
 } from '@/db/schema';
 import { updateSettings } from '@/db/reminders';
+import { buildBackupReportHtml } from './backupReport';
 
 export const BACKUP_FORMAT = 'herdcare-backup';
 export const BACKUP_VERSION = 1;
@@ -44,9 +46,8 @@ export interface BackupBundle {
   };
 }
 
-function backupFileName(date = new Date()): string {
-  const stamp = `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
-  return `herdcare-backup-${stamp}.json`;
+function dateStamp(date = new Date()): string {
+  return `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
 }
 
 export async function buildBackup(): Promise<BackupBundle> {
@@ -88,30 +89,56 @@ export interface ExportResult {
   shared: boolean;
 }
 
+async function shareFile(uri: string, fileName: string, mimeType: string, dialogTitle: string): Promise<boolean> {
+  if (!(await Sharing.isAvailableAsync())) return false;
+  await Sharing.shareAsync(uri, { mimeType, dialogTitle, UTI: mimeType === 'application/pdf' ? 'com.adobe.pdf' : 'public.json' });
+  return true;
+}
+
 /**
- * Writes a backup and hands it to the OS share sheet, so the farmer can send it to WhatsApp,
- * Drive or email. Written to the cache directory on purpose: once it has been shared it is a
- * copy, and leaving copies in permanent storage would quietly eat the space they are short of.
+ * Renders the records as a PDF report and hands it to the OS share sheet — this is the default,
+ * farmer-facing "Back up my records" action. Unlike the JSON export below, a PDF can be opened
+ * and actually read by anyone (the farmer, a vet, a buyer) without the app, which is the whole
+ * point of it existing separately from the technical backup.
+ *
+ * A PDF cannot be reliably parsed back into structured data, so it does not feed Restore — see
+ * `exportJsonBackup` for that. Creating either counts toward "the farmer now holds an external
+ * copy", so both update `lastBackupAt`.
  */
-export async function exportBackup(): Promise<ExportResult> {
+export async function exportPdfReport(): Promise<ExportResult> {
   const bundle = await buildBackup();
-  const fileName = backupFileName();
+  const html = buildBackupReportHtml(bundle);
+  const { uri: printUri } = await Print.printToFileAsync({ html, base64: false });
+
+  // printToFileAsync names the file itself; renaming it gives the share sheet and the farmer's
+  // downloads folder something identifiable instead of a random cache filename.
+  const fileName = `herdcare-records-${dateStamp()}.pdf`;
+  const file = new File(printUri);
+  const renamed = new File(Paths.cache, fileName);
+  if (renamed.exists) renamed.delete();
+  file.moveSync(renamed);
+
+  const shared = await shareFile(renamed.uri, fileName, 'application/pdf', 'Save your HerdCare records');
+  await updateSettings({ lastBackupAt: new Date().toISOString() });
+  return { fileName, uri: renamed.uri, counts: bundle.counts, shared };
+}
+
+/**
+ * Writes the full structured backup and hands it to the OS share sheet. This is the file
+ * "Restore from a backup" reads — a farmer who only ever shares the PDF report has a readable
+ * record but nothing that can repopulate a new phone, so Settings surfaces this as a distinct,
+ * clearly-labelled second action rather than folding it into the PDF button.
+ */
+export async function exportJsonBackup(): Promise<ExportResult> {
+  const bundle = await buildBackup();
+  const fileName = `herdcare-backup-${dateStamp()}.json`;
   const file = new File(Paths.cache, fileName);
 
   if (file.exists) file.delete();
   file.create();
   file.write(JSON.stringify(bundle, null, 2));
 
-  let shared = false;
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(file.uri, {
-      mimeType: 'application/json',
-      dialogTitle: 'Save your HerdCare records',
-      UTI: 'public.json',
-    });
-    shared = true;
-  }
-
+  const shared = await shareFile(file.uri, fileName, 'application/json', 'Save your HerdCare technical backup');
   await updateSettings({ lastBackupAt: new Date().toISOString() });
   return { fileName, uri: file.uri, counts: bundle.counts, shared };
 }

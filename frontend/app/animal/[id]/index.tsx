@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Pressable, Text, View } from 'react-native';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { desc, eq } from 'drizzle-orm';
@@ -13,6 +14,8 @@ import { db } from '@/db/client';
 import { ANIMAL_STATUSES, animals, birthRecords, breedingEvents, healthLogs, type AnimalStatus } from '@/db/schema';
 import { SpeciesAvatar } from '@/components/animals/SpeciesIcon';
 import { StatusBadge } from '@/components/animals/StatusBadge';
+import { showUndoToast } from '@/components/ui/UndoToast';
+import { useColors } from '@/theme/colors';
 import { daysFromToday, formatDateForDisplay } from '@/utils/livestockRules';
 
 const SECTIONS = [
@@ -47,6 +50,7 @@ function TimelineEntry({ children, index = 0 }: { children: React.ReactNode; ind
 export default function AnimalDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [section, setSection] = useState<Section>('overview');
+  const colors = useColors();
 
   const { data: animalRows } = useLiveQuery(db.select().from(animals).where(eq(animals.id, id)));
   const animal = animalRows?.[0];
@@ -70,11 +74,34 @@ export default function AnimalDetailScreen() {
   }
 
   async function updateStatus(status: AnimalStatus) {
+    if (status === animal.status) return;
+    const previousStatus = animal.status;
     await db.update(animals).set({ status, updatedAt: new Date().toISOString() }).where(eq(animals.id, id));
+    showUndoToast({
+      message: `Marked ${animal.tagNumber} as ${status.replace('_', ' ')}`,
+      onUndo: async () => {
+        await db.update(animals).set({ status: previousStatus, updatedAt: new Date().toISOString() }).where(eq(animals.id, id));
+      },
+    });
   }
 
   return (
     <ScreenContainer fab={<Fab icon="clipboard-outline" label="Log event" onPress={() => router.push(`/log?animalId=${id}`)} />}>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Edit animal"
+              onPress={() => router.push(`/animal/${id}/edit`)}
+              hitSlop={8}
+              className="h-10 w-10 items-center justify-center"
+            >
+              <Ionicons name="pencil-outline" size={22} color={colors.brand} />
+            </Pressable>
+          ),
+        }}
+      />
       {/* Identity block sits straight on the canvas — the animal is the subject, not a card. */}
       <Animated.View entering={FadeInDown.duration(280)} className="items-center gap-2 pt-2">
         <SpeciesAvatar species={animal.species} size={40} tone={animal.status === 'in_withdrawal' ? 'warn' : 'default'} />

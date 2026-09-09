@@ -10,6 +10,7 @@ import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_7
 import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
 import { db } from '@/db/client';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
+import { UndoToastHost } from '@/components/ui/UndoToast';
 import { useColors, useIsDark } from '@/theme/colors';
 import migrations from '@/drizzle/migrations';
 
@@ -86,7 +87,11 @@ export default function RootLayout() {
             }}
           >
             <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="animal/[id]" options={{ headerShown: true, title: '' }} />
+            <Stack.Screen name="animal/[id]/index" options={{ headerShown: true, title: '' }} />
+            <Stack.Screen
+              name="animal/[id]/edit"
+              options={{ presentation: 'modal', headerShown: true, title: 'Edit animal' }}
+            />
             <Stack.Screen name="animal/new" options={{ presentation: 'modal', headerShown: true, title: 'New animal' }} />
             {/* The log forms replace the chooser inside the same modal, so they declare the same
                 presentation — one `router.back()` then dismisses the whole logging flow. */}
@@ -100,6 +105,7 @@ export default function RootLayout() {
               options={{ presentation: 'modal', headerShown: true, title: 'Repeating task' }}
             />
           </Stack>
+          <UndoToastHost />
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

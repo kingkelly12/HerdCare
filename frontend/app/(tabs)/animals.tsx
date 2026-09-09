@@ -10,6 +10,7 @@ import { FilterChips } from '@/components/ui/Segmented';
 import { Button } from '@/components/ui/Button';
 import { Fab } from '@/components/ui/Fab';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { showUndoToast } from '@/components/ui/UndoToast';
 import { AnimalListItem } from '@/components/animals/AnimalListItem';
 import { db } from '@/db/client';
 import { ANIMAL_STATUSES, animals, type AnimalStatus, type Species } from '@/db/schema';
@@ -62,8 +63,26 @@ export default function AnimalsScreen() {
 
   async function applyBulkStatus(status: AnimalStatus) {
     if (selectedIds.size === 0) return;
-    await db.update(animals).set({ status, updatedAt: new Date().toISOString() }).where(inArray(animals.id, [...selectedIds]));
+    const ids = [...selectedIds];
+    const count = ids.length;
+
+    // Read fresh rather than trusting the filtered `data` list: selection persists across filter
+    // changes, so an animal that's selected may no longer be present in the currently filtered
+    // view by the time the action is applied.
+    const previous = await db.select({ id: animals.id, status: animals.status }).from(animals).where(inArray(animals.id, ids));
+
+    await db.update(animals).set({ status, updatedAt: new Date().toISOString() }).where(inArray(animals.id, ids));
     exitSelectionMode();
+
+    showUndoToast({
+      message: `Marked ${count} animal${count === 1 ? '' : 's'} as ${status.replace('_', ' ')}`,
+      onUndo: async () => {
+        const now = new Date().toISOString();
+        for (const row of previous) {
+          await db.update(animals).set({ status: row.status, updatedAt: now }).where(eq(animals.id, row.id));
+        }
+      },
+    });
   }
 
   // Rendered through the container's overlay slot so it sits outside the padded body and can

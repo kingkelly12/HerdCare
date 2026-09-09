@@ -61,7 +61,9 @@ export default function SettingsScreen() {
 
   async function patchSettings(patch: Parameters<typeof updateSettings>[0]) {
     await updateSettings(patch);
-    await refreshRemindersAndNotifications();
+    // Not awaited — see the note in log/breeding.tsx. A switch should flip the instant it's
+    // tapped, not wait on rescheduling every pending notification.
+    refreshRemindersAndNotifications().catch(() => {});
   }
 
   async function refreshCounts() {
