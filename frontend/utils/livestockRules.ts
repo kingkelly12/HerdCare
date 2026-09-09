@@ -87,6 +87,17 @@ export function startOfTodayIso(): string {
   return date.toISOString();
 }
 
+/**
+ * Local midnight of whatever day an instant falls on. Milk yield is a per-day quantity, so its
+ * records are stored against the day rather than the moment of entry — that makes "the evening
+ * milking on the 8th" a single addressable row instead of something to search a time range for.
+ */
+export function startOfDayIso(iso: string): string {
+  const date = new Date(iso);
+  date.setHours(0, 0, 0, 0);
+  return date.toISOString();
+}
+
 /** Projects the expected due (calving/kidding/farrowing/foaling) date from a breeding event date. */
 export function calculateExpectedDueDate(species: Species, breedingDateIso: string): string {
   return addDaysIso(breedingDateIso, SPECIES_RULES[species].gestationDays);

@@ -99,6 +99,11 @@ export default function RootLayout() {
             <Stack.Screen name="log/breeding" options={{ presentation: 'modal', headerShown: true, title: 'Log breeding event' }} />
             <Stack.Screen name="log/health" options={{ presentation: 'modal', headerShown: true, title: 'Log treatment' }} />
             <Stack.Screen name="log/birth" options={{ presentation: 'modal', headerShown: true, title: 'Log birth' }} />
+            <Stack.Screen name="log/milk" options={{ presentation: 'modal', headerShown: true, title: 'Record milking' }} />
+            <Stack.Screen
+              name="expense/new"
+              options={{ presentation: 'modal', headerShown: true, title: 'Add expense' }}
+            />
             <Stack.Screen name="reminders" options={{ headerShown: true, title: 'Reminders' }} />
             <Stack.Screen
               name="schedule/new"

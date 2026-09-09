@@ -10,6 +10,7 @@ import { AnimalSearchModal } from '@/components/animals/AnimalSearchModal';
 import { SelectedAnimalField } from '@/components/animals/SelectedAnimalField';
 import { SpeciesIcon } from '@/components/animals/SpeciesIcon';
 import { db } from '@/db/client';
+import { findTagClash } from '@/db/queries';
 import { animals, SPECIES, type Animal, type Gender, type Species } from '@/db/schema';
 import { SPECIES_RULES } from '@/utils/livestockRules';
 import { notifySaved } from '@/lib/haptics';
@@ -45,6 +46,11 @@ export default function NewAnimalScreen() {
     setSaving(true);
     setError(null);
     try {
+      const clash = await findTagClash(tagNumber);
+      if (clash) {
+        setError(`Tag ${clash.tagNumber} is already used by ${clash.name ?? 'another animal'}. Tags must be unique.`);
+        return;
+      }
       const [created] = await db
         .insert(animals)
         .values({

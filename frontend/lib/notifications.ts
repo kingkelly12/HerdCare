@@ -3,8 +3,9 @@ import * as Notifications from 'expo-notifications';
 import { and, asc, eq, lte } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { getSettings } from '@/db/reminders';
-import { animals, reminders, type Reminder, type Settings } from '@/db/schema';
+import { animals, reminders } from '@/db/schema';
 import { addDaysIso, startOfTodayIso } from '@/utils/livestockRules';
+import { isReminderTypeEnabled } from '@/utils/reminderRules';
 
 const ANDROID_CHANNEL_ID = 'herdcare-reminders';
 
@@ -41,23 +42,6 @@ export async function ensureNotificationSetup(): Promise<boolean> {
     ios: { allowAlert: true, allowBadge: false, allowSound: true },
   });
   return requested.granted;
-}
-
-function typeEnabled(settingsRow: Settings, reminder: Reminder): boolean {
-  switch (reminder.type) {
-    case 'heat_return':
-      return settingsRow.remindHeatReturn;
-    case 'birth_due':
-      return settingsRow.remindBirthDue;
-    case 'withdrawal_end':
-      return settingsRow.remindWithdrawalEnd;
-    case 'weaning_due':
-      return settingsRow.remindWeaningDue;
-    case 'routine':
-      return settingsRow.remindRoutine;
-    default:
-      return true;
-  }
 }
 
 /** Local-day key (YYYY-MM-DD) for an ISO instant, so digests group by the farmer's calendar. */
@@ -102,7 +86,7 @@ export async function rescheduleDigests(): Promise<void> {
   const byDay = new Map<string, string[]>();
 
   for (const { reminder, animal } of rows) {
-    if (!typeEnabled(settingsRow, reminder)) continue;
+    if (!isReminderTypeEnabled(settingsRow, reminder.type)) continue;
     const dueKey = localDayKey(reminder.dueDate);
     const key = dueKey < todayKey ? todayKey : dueKey;
     const label = animal ? `${animal.tagNumber} ${reminder.title.toLowerCase()}` : reminder.title;

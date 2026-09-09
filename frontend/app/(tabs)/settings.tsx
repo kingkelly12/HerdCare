@@ -9,6 +9,7 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Surface } from '@/components/ui/Surface';
 import { Button } from '@/components/ui/Button';
 import { Segmented } from '@/components/ui/Segmented';
+import { TextField } from '@/components/ui/TextField';
 import { db } from '@/db/client';
 import { updateSettings } from '@/db/reminders';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
@@ -59,6 +60,23 @@ export default function SettingsScreen() {
   const { data: herdRows } = useLiveQuery(db.select({ id: animals.id }).from(animals));
   const herdSize = herdRows?.length ?? 0;
 
+  // Held locally while typing and written on blur — persisting every keystroke would fight the
+  // live query for control of the text field.
+  const [milkPrice, setMilkPrice] = useState<string | null>(null);
+  const [currency, setCurrency] = useState<string | null>(null);
+  const milkPriceValue = milkPrice ?? String(prefs?.milkPricePerLitre ?? 0);
+  const currencyValue = currency ?? prefs?.currency ?? 'KES';
+
+  function commitMilkPrice() {
+    const parsed = Number.parseFloat(milkPriceValue);
+    patchSettings({ milkPricePerLitre: Number.isFinite(parsed) && parsed >= 0 ? parsed : 0 });
+  }
+
+  function commitCurrency() {
+    const trimmed = currencyValue.trim().toUpperCase();
+    if (trimmed) patchSettings({ currency: trimmed });
+  }
+
   async function patchSettings(patch: Parameters<typeof updateSettings>[0]) {
     await updateSettings(patch);
     // Not awaited — see the note in log/breeding.tsx. A switch should flip the instant it's
@@ -90,6 +108,39 @@ export default function SettingsScreen() {
       <Animated.View entering={FadeInDown.duration(280)} className="pt-4">
         <Text className="text-title font-sans-bold text-primary">Settings</Text>
       </Animated.View>
+
+      {prefs ? (
+        <View className="gap-2">
+          <SectionTitle>Milk &amp; money</SectionTitle>
+          <Surface level="raised" className="gap-3 p-4">
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <TextField
+                  label="Price per litre"
+                  value={milkPriceValue}
+                  onChangeText={setMilkPrice}
+                  onBlur={commitMilkPrice}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+              <View className="w-28">
+                <TextField
+                  label="Currency"
+                  value={currencyValue}
+                  onChangeText={setCurrency}
+                  onBlur={commitCurrency}
+                  autoCapitalize="characters"
+                  maxLength={4}
+                />
+              </View>
+            </View>
+            <Text className="text-label text-tertiary">
+              Used as the starting price when you record a milking. Each milking keeps the price it was saved with, so
+              changing this never rewrites what you have already earned.
+            </Text>
+          </Surface>
+        </View>
+      ) : null}
 
       {prefs ? (
         <View className="gap-2">

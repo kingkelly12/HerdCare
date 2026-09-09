@@ -10,9 +10,11 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ReminderCard } from '@/components/reminders/ReminderCard';
 import { db } from '@/db/client';
 import { completeReminder, dismissReminder } from '@/db/reminders';
-import { animals, reminders } from '@/db/schema';
+import { animals, reminderSchedules, reminders, settings } from '@/db/schema';
 import { refreshRemindersAndNotifications, refreshReminderData } from '@/lib/reminderSync';
 import { daysFromToday } from '@/utils/livestockRules';
+import { isReminderTypeEnabled } from '@/utils/reminderRules';
+import { SPECIES_RULES } from '@/utils/livestockRules';
 
 export default function RemindersScreen() {
   useFocusEffect(
@@ -21,16 +23,23 @@ export default function RemindersScreen() {
     }, []),
   );
 
+  // The schedule is joined so a routine reminder can say what it actually applies to — a task
+  // scoped to goats used to read the same as one for the whole herd.
   const { data } = useLiveQuery(
     db
-      .select({ reminder: reminders, animal: animals })
+      .select({ reminder: reminders, animal: animals, schedule: reminderSchedules })
       .from(reminders)
       .leftJoin(animals, eq(reminders.animalId, animals.id))
+      .leftJoin(reminderSchedules, eq(reminders.scheduleId, reminderSchedules.id))
       .where(eq(reminders.status, 'pending'))
       .orderBy(asc(reminders.dueDate)),
   );
 
-  const rows = data ?? [];
+  const { data: settingsRows } = useLiveQuery(db.select().from(settings).where(eq(settings.id, 'default')));
+  const prefs = settingsRows?.[0];
+
+  // Switching a type off in Settings hides it here too, not just in the daily notification.
+  const rows = (data ?? []).filter((row) => isReminderTypeEnabled(prefs, row.reminder.type));
   const overdue = rows.filter((row) => (daysFromToday(row.reminder.dueDate) ?? 0) < 0);
   const today = rows.filter((row) => daysFromToday(row.reminder.dueDate) === 0);
   const soon = rows.filter((row) => {
@@ -80,11 +89,18 @@ export default function RemindersScreen() {
               <Text className={`text-label font-sans-semibold uppercase ${section.tone}`}>
                 {section.title} · {section.rows.length}
               </Text>
-              {section.rows.map(({ reminder, animal }, i) => (
+              {section.rows.map(({ reminder, animal, schedule }, i) => (
                 <ReminderCard
                   key={reminder.id}
                   reminder={reminder}
                   animal={animal}
+                  scopeLabel={
+                    schedule
+                      ? schedule.speciesFilter
+                        ? `All ${SPECIES_RULES[schedule.speciesFilter].label.toLowerCase()}s`
+                        : 'Whole herd'
+                      : undefined
+                  }
                   index={i}
                   onDone={() => handleDone(reminder.id)}
                   onDismiss={() => handleDismiss(reminder.id)}

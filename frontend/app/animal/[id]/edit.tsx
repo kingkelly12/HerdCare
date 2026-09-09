@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Text } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { eq } from 'drizzle-orm';
@@ -13,9 +13,11 @@ import { AnimalSearchModal } from '@/components/animals/AnimalSearchModal';
 import { SelectedAnimalField } from '@/components/animals/SelectedAnimalField';
 import { SpeciesIcon } from '@/components/animals/SpeciesIcon';
 import { db } from '@/db/client';
+import { deleteAnimalCascade, findTagClash } from '@/db/queries';
 import { animals, SPECIES, type Animal, type Gender, type Species } from '@/db/schema';
 import { SPECIES_RULES } from '@/utils/livestockRules';
 import { notifySaved } from '@/lib/haptics';
+import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 
 const GENDER_OPTIONS: { value: Gender; label: string }[] = [
   { value: 'female', label: 'Female' },
@@ -44,33 +46,63 @@ export default function EditAnimalScreen() {
   const [sire, setSire] = useState<Animal | null>(null);
   const [pickerOpen, setPickerOpen] = useState<'dam' | 'sire' | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // The record loads asynchronously — this seeds the form from it exactly once, rather than on
   // every live-query refresh, so a farmer's in-progress edits are never clobbered by their own save.
-  const { data: damRows } = useLiveQuery(db.select().from(animals).where(eq(animals.id, animal?.damId ?? '')));
-  const { data: sireRows } = useLiveQuery(db.select().from(animals).where(eq(animals.id, animal?.sireId ?? '')));
+  //
+  // The parents are resolved with a plain read rather than useLiveQuery on purpose. That hook
+  // subscribes inside a useEffect keyed on its dependency array, so a lookup by `animal.damId`
+  // would capture the query built on the first render — before `animal` exists — and resolve to
+  // nothing forever. Seeding the form from that empty result then wrote `damId: null` back on
+  // save, silently erasing a parent the farmer had already recorded. A form is a snapshot
+  // anyway, so a one-shot read is both correct and simpler.
+  const seededRef = useRef(false);
 
   useEffect(() => {
-    if (loaded || !animal) return;
+    if (seededRef.current || !animal) return;
+    seededRef.current = true;
+
     setTagNumber(animal.tagNumber);
     setName(animal.name ?? '');
     setSpecies(animal.species);
     setBreed(animal.breed ?? '');
     setGender(animal.gender);
     setBirthDate(animal.birthDate ?? '');
-    setDam(damRows?.[0] ?? null);
-    setSire(sireRows?.[0] ?? null);
-    setLoaded(true);
-  }, [loaded, animal, damRows, sireRows]);
 
-  const canSave = tagNumber.trim().length > 0 && species !== null && gender !== null;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [damRow] = animal.damId ? await db.select().from(animals).where(eq(animals.id, animal.damId)) : [];
+        const [sireRow] = animal.sireId ? await db.select().from(animals).where(eq(animals.id, animal.sireId)) : [];
+        if (cancelled) return;
+        setDam(damRow ?? null);
+        setSire(sireRow ?? null);
+      } finally {
+        // Latched even if the lookup failed, so a broken read cannot leave Save disabled forever.
+        // handleSave falls back to the stored ids, so nothing is lost in that case.
+        if (!cancelled) setLoaded(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [animal]);
+
+  const canSave = loaded && tagNumber.trim().length > 0 && species !== null && gender !== null;
 
   async function handleSave() {
     if (!canSave || !species || !gender) return;
     setSaving(true);
     setError(null);
     try {
+      const clash = await findTagClash(tagNumber, id);
+      if (clash) {
+        setError(`Tag ${clash.tagNumber} is already used by ${clash.name ?? 'another animal'}. Tags must be unique.`);
+        return;
+      }
       await db
         .update(animals)
         .set({
@@ -80,8 +112,11 @@ export default function EditAnimalScreen() {
           breed: breed.trim() || null,
           gender,
           birthDate: birthDate || null,
-          damId: dam?.id ?? null,
-          sireId: sire?.id ?? null,
+          // Falls back to what is already stored rather than writing null. The picker can only
+          // ever *select* an animal — there is no way to clear a parent from this form — so a
+          // null here would only ever mean "not seeded yet", never "the farmer removed it".
+          damId: dam?.id ?? animal.damId ?? null,
+          sireId: sire?.id ?? animal.sireId ?? null,
           updatedAt: new Date().toISOString(),
         })
         .where(eq(animals.id, id));
@@ -92,6 +127,35 @@ export default function EditAnimalScreen() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function confirmDelete() {
+    if (!animal) return;
+    Alert.alert(
+      `Delete ${animal.tagNumber}?`,
+      'This removes the animal and every breeding, health, birth and milk record kept for it. This cannot be undone.\n\nIf the animal was sold or has died, set its status instead — that keeps the history.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await deleteAnimalCascade(id);
+              refreshRemindersAndNotifications().catch(() => {});
+              // Back past the detail screen of an animal that no longer exists.
+              router.dismissAll();
+              router.replace('/animals');
+            } catch (e) {
+              setError(e instanceof Error ? e.message : 'Could not delete this animal.');
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    );
   }
 
   if (!animal) {
@@ -125,6 +189,14 @@ export default function EditAnimalScreen() {
       <SelectedAnimalField label="Father" animal={sire} onPress={() => setPickerOpen('sire')} />
 
       {error ? <Text className="text-callout text-danger">{error}</Text> : null}
+
+      <View className="mt-4 gap-2 border-t border-line pt-5">
+        <Text className="text-label font-sans-semibold uppercase text-tertiary">Danger zone</Text>
+        <Text className="text-label text-tertiary">
+          Sold or died? Set the status on the animal instead — deleting throws the history away.
+        </Text>
+        <Button label="Delete this animal" variant="danger" fullWidth loading={deleting} onPress={confirmDelete} />
+      </View>
 
       <AnimalSearchModal
         visible={pickerOpen === 'dam'}

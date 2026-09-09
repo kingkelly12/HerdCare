@@ -43,6 +43,24 @@ export type ReminderSourceTable = (typeof REMINDER_SOURCE_TABLES)[number];
 export const ROUTINE_CATEGORIES = ['deworming', 'vaccination', 'spraying', 'hoof_trimming', 'other'] as const;
 export type RoutineCategory = (typeof ROUTINE_CATEGORIES)[number];
 
+/** Milking happens in fixed rounds, and yield is recorded per round rather than as a daily lump. */
+export const MILK_SESSIONS = ['morning', 'midday', 'evening'] as const;
+export type MilkSession = (typeof MILK_SESSIONS)[number];
+
+/** Species that are milked in this app. Others simply never offer milk recording. */
+export const MILKING_SPECIES = ['cow', 'goat'] as const;
+
+export const EXPENSE_CATEGORIES = [
+  'feed',
+  'supplement',
+  'medication',
+  'veterinary',
+  'labour',
+  'equipment',
+  'other',
+] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
 export const animals = sqliteTable(
   'animals',
   {
@@ -136,6 +154,56 @@ export const healthLogs = sqliteTable(
   ],
 );
 
+export const milkRecords = sqliteTable(
+  'milk_records',
+  {
+    id: text('id').primaryKey().$defaultFn(generateId),
+    animalId: text('animal_id')
+      .notNull()
+      .references(() => animals.id, { onDelete: 'cascade' }),
+    recordDate: text('record_date').notNull(),
+    session: text('session', { enum: MILK_SESSIONS }).notNull(),
+    litres: real('litres').notNull(),
+    /**
+     * The price in force when this milking was recorded, copied in rather than referenced.
+     * Revenue already banked must not silently change months later because the farmer updated
+     * the price they now sell at.
+     */
+    pricePerLitre: real('price_per_litre'),
+    notes: text('notes'),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+  },
+  (table) => [
+    index('milk_records_animal_id_idx').on(table.animalId),
+    index('milk_records_record_date_idx').on(table.recordDate),
+  ],
+);
+
+/** Money out. Revenue is derived from `milk_records` rather than duplicated here. */
+export const expenses = sqliteTable(
+  'expenses',
+  {
+    id: text('id').primaryKey().$defaultFn(generateId),
+    category: text('category', { enum: EXPENSE_CATEGORIES }).notNull(),
+    description: text('description').notNull(),
+    amount: real('amount').notNull(),
+    /** Optional "50 kg" style detail, so a farmer can see what a price actually bought. */
+    quantity: real('quantity'),
+    unit: text('unit'),
+    expenseDate: text('expense_date').notNull(),
+    /** Set when a cost belongs to one animal (a vet call-out), null for herd-wide costs (feed). */
+    animalId: text('animal_id').references(() => animals.id, { onDelete: 'set null' }),
+    notes: text('notes'),
+    createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+  },
+  (table) => [
+    index('expenses_expense_date_idx').on(table.expenseDate),
+    index('expenses_category_idx').on(table.category),
+    index('expenses_animal_id_idx').on(table.animalId),
+  ],
+);
+
 /** A repeating husbandry task ("deworm the goats every 90 days"). Spawns one reminder at a time. */
 export const reminderSchedules = sqliteTable(
   'reminder_schedules',
@@ -202,6 +270,9 @@ export const settings = sqliteTable('settings', {
   remindRoutine: integer('remind_routine', { mode: 'boolean' }).notNull().default(true),
   /** When the farmer last exported a backup — drives the "your records are not backed up" nudge. */
   lastBackupAt: text('last_backup_at'),
+  /** Default price used to value a new milking; each record keeps its own copy once saved. */
+  milkPricePerLitre: real('milk_price_per_litre').notNull().default(0),
+  currency: text('currency').notNull().default('KES'),
   createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
 });
@@ -212,6 +283,11 @@ export const animalsRelations = relations(animals, ({ one, many }) => ({
   breedingEvents: many(breedingEvents),
   birthRecords: many(birthRecords),
   healthLogs: many(healthLogs),
+  milkRecords: many(milkRecords),
+}));
+
+export const milkRecordsRelations = relations(milkRecords, ({ one }) => ({
+  animal: one(animals, { fields: [milkRecords.animalId], references: [animals.id] }),
 }));
 
 export const breedingEventsRelations = relations(breedingEvents, ({ one }) => ({
@@ -243,6 +319,10 @@ export type BirthRecord = typeof birthRecords.$inferSelect;
 export type NewBirthRecord = typeof birthRecords.$inferInsert;
 export type HealthLog = typeof healthLogs.$inferSelect;
 export type NewHealthLog = typeof healthLogs.$inferInsert;
+export type MilkRecord = typeof milkRecords.$inferSelect;
+export type NewMilkRecord = typeof milkRecords.$inferInsert;
+export type Expense = typeof expenses.$inferSelect;
+export type NewExpense = typeof expenses.$inferInsert;
 export type Reminder = typeof reminders.$inferSelect;
 export type NewReminder = typeof reminders.$inferInsert;
 export type ReminderSchedule = typeof reminderSchedules.$inferSelect;

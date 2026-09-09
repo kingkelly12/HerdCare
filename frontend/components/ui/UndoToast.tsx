@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSegments } from 'expo-router';
+import { BASE_TAB_BAR_HEIGHT } from '@/theme/layout';
 
 interface ToastRequest {
   message: string;
@@ -15,10 +18,8 @@ type Listener = (request: ToastRequest | null) => void;
 let listener: Listener | null = null;
 
 const VISIBLE_MS = 6000;
-// A flat offset rather than measuring the tab bar or FAB: this toast can appear over the tab
-// screens (tab bar), the animal detail screen (FAB), or the herd list (bulk-action bar), and no
-// single insets calculation clears all three. This clears the tallest of them with room to spare.
-const BOTTOM_OFFSET = 100;
+/** Breathing room between the toast and whatever sits below it. */
+const GAP = 16;
 
 /** Shows a bottom toast with a single Undo action. Call from anywhere once `<UndoToastHost />` is mounted. */
 export function showUndoToast(request: ToastRequest) {
@@ -29,6 +30,15 @@ export function showUndoToast(request: ToastRequest) {
 export function UndoToastHost() {
   const [toast, setToast] = useState<ToastRequest | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const insets = useSafeAreaInsets();
+  const segments = useSegments();
+
+  // This host is mounted above the navigator, so "bottom" means the bottom of the window — which
+  // on a tab screen is underneath the tab bar. A flat offset used to leave the toast hidden
+  // behind it on phones with a tall navigation inset, so the tab bar's own height is added back
+  // whenever a tab screen is on top.
+  const overTabs = segments[0] === '(tabs)';
+  const bottom = insets.bottom + (overTabs ? BASE_TAB_BAR_HEIGHT : 0) + GAP;
 
   useEffect(() => {
     listener = (request) => {
@@ -59,7 +69,7 @@ export function UndoToastHost() {
       entering={FadeInDown.springify().damping(18)}
       exiting={FadeOutDown.duration(180)}
       pointerEvents="box-none"
-      style={{ position: 'absolute', left: 16, right: 16, bottom: BOTTOM_OFFSET }}
+      style={{ position: 'absolute', left: 16, right: 16, bottom }}
     >
       <View
         className="flex-row items-center gap-3 rounded-field bg-raised px-4 py-3"

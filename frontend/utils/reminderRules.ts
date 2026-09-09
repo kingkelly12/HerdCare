@@ -68,6 +68,44 @@ export const INTERVAL_PRESETS = [
   { label: 'Yearly', days: 365 },
 ];
 
+/**
+ * Whether a reminder type is switched on in Settings.
+ *
+ * Shared by the daily digest *and* the in-app lists: the setting is headed "What to remind me
+ * about", so switching one off has to stop it appearing on the Reminders screen and the
+ * dashboard too, not merely silence the notification.
+ */
+export function isReminderTypeEnabled(
+  prefs:
+    | {
+        remindHeatReturn: boolean;
+        remindBirthDue: boolean;
+        remindWithdrawalEnd: boolean;
+        remindWeaningDue: boolean;
+        remindRoutine: boolean;
+      }
+    | null
+    | undefined,
+  type: ReminderType,
+): boolean {
+  // Before the settings row exists, everything shows — silence should be opted into, never default.
+  if (!prefs) return true;
+  switch (type) {
+    case 'heat_return':
+      return prefs.remindHeatReturn;
+    case 'birth_due':
+      return prefs.remindBirthDue;
+    case 'withdrawal_end':
+      return prefs.remindWithdrawalEnd;
+    case 'weaning_due':
+      return prefs.remindWeaningDue;
+    case 'routine':
+      return prefs.remindRoutine;
+    default:
+      return true;
+  }
+}
+
 /** Breeding events that start a pregnancy, and therefore imply a due date and a heat-return check. */
 export const SERVICE_EVENT_TYPES = ['served_natural', 'served_ai', 'induced'] as const;
 

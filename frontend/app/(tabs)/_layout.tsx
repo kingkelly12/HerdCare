@@ -2,10 +2,7 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/theme/colors';
-
-// The height a tab bar would want on a device with no inset at all (no home indicator, no
-// gesture-nav pill) — insets.bottom is added on top of this, never used as a substitute for it.
-const BASE_TAB_BAR_HEIGHT = 56;
+import { BASE_TAB_BAR_HEIGHT } from '@/theme/layout';
 
 export default function TabsLayout() {
   const colors = useColors();
@@ -45,6 +42,15 @@ export default function TabsLayout() {
         options={{
           title: 'Herd',
           tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'paw' : 'paw-outline'} size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="money"
+        options={{
+          title: 'Money',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'cash' : 'cash-outline'} size={24} color={color} />
+          ),
         }}
       />
       <Tabs.Screen

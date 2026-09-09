@@ -4,28 +4,45 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
-import { desc, eq, or } from 'drizzle-orm';
+import { and, desc, eq, gte, or } from 'drizzle-orm';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Surface } from '@/components/ui/Surface';
 import { Segmented, FilterChips } from '@/components/ui/Segmented';
 import { Fab } from '@/components/ui/Fab';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { db } from '@/db/client';
-import { ANIMAL_STATUSES, animals, birthRecords, breedingEvents, healthLogs, type Animal, type AnimalStatus } from '@/db/schema';
+import { totalLitres, totalRevenue } from '@/db/milk';
+import {
+  ANIMAL_STATUSES,
+  MILKING_SPECIES,
+  animals,
+  birthRecords,
+  breedingEvents,
+  healthLogs,
+  milkRecords,
+  settings,
+  type Animal,
+  type AnimalStatus,
+} from '@/db/schema';
 import { SpeciesAvatar } from '@/components/animals/SpeciesIcon';
 import { StatusBadge } from '@/components/animals/StatusBadge';
 import { showUndoToast } from '@/components/ui/UndoToast';
 import { useColors } from '@/theme/colors';
-import { daysFromToday, formatDateForDisplay } from '@/utils/livestockRules';
+import { addDaysIso, daysFromToday, formatDateForDisplay, startOfTodayIso } from '@/utils/livestockRules';
+import { formatLitres, formatMoney } from '@/utils/money';
 
-const SECTIONS = [
+const ALL_SECTIONS = [
   { value: 'overview', label: 'Overview' },
+  { value: 'milk', label: 'Milk' },
   { value: 'family', label: 'Family' },
   { value: 'breeding', label: 'Breeding' },
   { value: 'health', label: 'Health' },
   { value: 'births', label: 'Births' },
 ] as const;
-type Section = (typeof SECTIONS)[number]['value'];
+type Section = (typeof ALL_SECTIONS)[number]['value'];
+
+/** How far back the per-animal milk figures look. */
+const MILK_WINDOW_DAYS = 30;
 
 const STATUS_OPTIONS = ANIMAL_STATUSES.map((status) => ({ value: status, label: status.replace('_', ' ') }));
 
@@ -89,8 +106,19 @@ export default function AnimalDetailScreen() {
 
   // Parents are looked up by id and may be empty (unset, or recorded before the parent's own
   // entry existed); children are any animal that names this one as mother or father.
-  const { data: damRows } = useLiveQuery(db.select().from(animals).where(eq(animals.id, animal?.damId ?? '')));
-  const { data: sireRows } = useLiveQuery(db.select().from(animals).where(eq(animals.id, animal?.sireId ?? '')));
+  //
+  // The dependency arrays are load-bearing. useLiveQuery subscribes inside a useEffect keyed on
+  // them, so with the default `[]` it would capture the query built on the very first render —
+  // when `animal` is still undefined and this reads `WHERE id = ''`. It would then keep re-running
+  // that empty query forever and the parents would never appear.
+  const { data: damRows } = useLiveQuery(
+    db.select().from(animals).where(eq(animals.id, animal?.damId ?? '')),
+    [animal?.damId],
+  );
+  const { data: sireRows } = useLiveQuery(
+    db.select().from(animals).where(eq(animals.id, animal?.sireId ?? '')),
+    [animal?.sireId],
+  );
   const { data: children } = useLiveQuery(
     db
       .select()
@@ -101,6 +129,28 @@ export default function AnimalDetailScreen() {
   const dam = damRows?.[0];
   const sire = sireRows?.[0];
 
+  const milkSince = addDaysIso(startOfTodayIso(), -(MILK_WINDOW_DAYS - 1));
+  const { data: milk } = useLiveQuery(
+    db
+      .select()
+      .from(milkRecords)
+      .where(and(eq(milkRecords.animalId, id), gte(milkRecords.recordDate, milkSince)))
+      .orderBy(desc(milkRecords.recordDate)),
+    [id, milkSince],
+  );
+
+  const { data: settingsRows } = useLiveQuery(db.select().from(settings).where(eq(settings.id, 'default')));
+  const currency = settingsRows?.[0]?.currency ?? 'KES';
+
+  const milkRows = milk ?? [];
+  const milkLitres = totalLitres(milkRows);
+  const milkRevenue = totalRevenue(milkRows);
+  // Averaged over the days actually milked, not the whole window — a cow recorded for three days
+  // should read as her real daily yield, not a thirtieth of it.
+  const milkedDays = new Set(milkRows.map((row) => row.recordDate)).size;
+  const litresPerDay = milkedDays > 0 ? milkLitres / milkedDays : 0;
+  const revenuePerDay = milkedDays > 0 ? milkRevenue / milkedDays : 0;
+
   if (!animal) {
     return (
       <ScreenContainer>
@@ -108,6 +158,11 @@ export default function AnimalDetailScreen() {
       </ScreenContainer>
     );
   }
+
+  // A bull or a sheep is never milked, so the tab would only ever be an empty promise.
+  const canBeMilked =
+    (MILKING_SPECIES as readonly string[]).includes(animal.species) && animal.gender === 'female';
+  const sections = ALL_SECTIONS.filter((entry) => entry.value !== 'milk' || canBeMilked);
 
   async function updateStatus(status: AnimalStatus) {
     if (status === animal.status) return;
@@ -162,7 +217,7 @@ export default function AnimalDetailScreen() {
         </View>
       </View>
 
-      <Segmented options={SECTIONS} value={section} onChange={setSection} />
+      <Segmented options={sections} value={section} onChange={setSection} />
 
       <Animated.View key={section} entering={FadeIn.duration(180)} className="gap-2">
         {section === 'overview' ? (
@@ -183,6 +238,56 @@ export default function AnimalDetailScreen() {
               </View>
             </View>
           </Surface>
+        ) : null}
+
+        {section === 'milk' ? (
+          milkRows.length === 0 ? (
+            <EmptyState
+              icon="water-outline"
+              title="No milk recorded"
+              description={`Record a milking and the last ${MILK_WINDOW_DAYS} days will be summarised here.`}
+            />
+          ) : (
+            <>
+              <Surface level="raised" className="gap-3 p-4">
+                <Text className="text-headline font-sans-semibold text-primary">Last {MILK_WINDOW_DAYS} days</Text>
+                <View className="flex-row">
+                  <View className="flex-1 gap-0.5">
+                    <Text className="text-metric font-sans-bold text-primary">
+                      {Math.round(litresPerDay * 10) / 10}
+                    </Text>
+                    <Text className="text-label text-tertiary">Litres a day</Text>
+                  </View>
+                  <View className="flex-1 gap-0.5">
+                    <Text className="text-metric font-sans-bold text-brand">
+                      {formatMoney(revenuePerDay, currency)}
+                    </Text>
+                    <Text className="text-label text-tertiary">A day</Text>
+                  </View>
+                </View>
+                <View className="border-t border-line pt-3">
+                  <Text className="text-callout text-secondary">
+                    {formatLitres(milkLitres)} over {milkedDays} {milkedDays === 1 ? 'day' : 'days'} ·{' '}
+                    <Text className="font-sans-semibold text-brand">{formatMoney(milkRevenue, currency)}</Text> earned
+                  </Text>
+                </View>
+              </Surface>
+
+              {milkRows.slice(0, 20).map((record, i) => (
+                <TimelineEntry key={record.id} index={i}>
+                  <View className="flex-row items-center justify-between">
+                    <Text className="text-body font-sans-semibold capitalize text-primary">
+                      {record.session} · {formatLitres(record.litres)}
+                    </Text>
+                    <Text className="text-callout font-sans-semibold text-brand">
+                      {formatMoney(record.litres * (record.pricePerLitre ?? 0), currency)}
+                    </Text>
+                  </View>
+                  <Text className="text-label text-tertiary">{formatDateForDisplay(record.recordDate)}</Text>
+                </TimelineEntry>
+              ))}
+            </>
+          )
         ) : null}
 
         {section === 'family' ? (

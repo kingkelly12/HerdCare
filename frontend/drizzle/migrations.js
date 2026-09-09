@@ -4,13 +4,15 @@ import journal from './meta/_journal.json';
 import m0000 from './0000_living_mariko_yashida.sql';
 import m0001 from './0001_sticky_human_cannonball.sql';
 import m0002 from './0002_living_randall_flagg.sql';
+import m0003 from './0003_thick_shard.sql';
 
   export default {
     journal,
     migrations: {
       m0000,
 m0001,
-m0002
+m0002,
+m0003
     }
   }
   

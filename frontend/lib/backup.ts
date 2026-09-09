@@ -256,6 +256,19 @@ export async function restoreBackup(bundle: BackupBundle): Promise<RestoreSummar
     summary.added.reminderSchedules++;
   }
 
+  // Preferences travel with the backup so a farmer setting up a replacement phone does not have
+  // to rebuild them from memory. `lastBackupAt` is deliberately excluded: it describes this
+  // device's own backup history, and importing someone else's would make the "your records are
+  // not backed up" nudge lie.
+  const [incomingSettings] = bundle.data.settings ?? [];
+  if (incomingSettings) {
+    const { id: _id, lastBackupAt: _lastBackupAt, createdAt: _createdAt, updatedAt: _updatedAt, ...preferences } =
+      incomingSettings as Record<string, unknown>;
+    if (Object.keys(preferences).length > 0) {
+      await updateSettings(preferences as Parameters<typeof updateSettings>[0]);
+    }
+  }
+
   return summary;
 }
 

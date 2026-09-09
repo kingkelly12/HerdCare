@@ -13,7 +13,7 @@ import { refreshReminderData } from '@/lib/reminderSync';
 import { animals, birthRecords, breedingEvents, healthLogs, reminders, settings } from '@/db/schema';
 import { SpeciesAvatar } from '@/components/animals/SpeciesIcon';
 import { useColors } from '@/theme/colors';
-import { REMINDER_TYPE_META } from '@/utils/reminderRules';
+import { REMINDER_TYPE_META, isReminderTypeEnabled } from '@/utils/reminderRules';
 import { addDaysIso, daysFromToday, formatDateForDisplay, startOfTodayIso } from '@/utils/livestockRules';
 
 /** How far ahead the "Due soon" figure looks. */
@@ -60,7 +60,14 @@ export default function HomeScreen() {
       .orderBy(asc(reminders.dueDate)),
   );
 
-  const { data: activeAnimals } = useLiveQuery(db.select().from(animals).where(eq(animals.status, 'active')));
+  // "In the herd" means every animal still on the farm, which includes one sitting out a drug
+  // withdrawal — it is still yours to feed and care for, just not to sell from. Counting only
+  // `active` also contradicted the withdrawal figure below, which uses this same filter: a single
+  // animal under withdrawal would read "0 in the herd, 1 in withdrawal". Sold and deceased
+  // animals are the ones that have genuinely left.
+  const { data: herdAnimals } = useLiveQuery(
+    db.select().from(animals).where(notInArray(animals.status, ['sold', 'deceased'])),
+  );
 
   // Distinct animals, not treatment rows: overlapping treatments on one animal are one animal
   // in withdrawal. Sold and deceased animals are no longer part of the working herd.
@@ -149,24 +156,24 @@ export default function HomeScreen() {
     .sort((a, b) => (a.date < b.date ? 1 : -1))
     .slice(0, 8);
 
-  const attention = dueNow ?? [];
-
   const { data: settingsRows } = useLiveQuery(db.select().from(settings).where(eq(settings.id, 'default')));
   const prefs = settingsRows?.[0];
+
+  // Honours the Settings toggles, same as the Reminders screen and the daily notification.
+  const attention = (dueNow ?? []).filter((row) => isReminderTypeEnabled(prefs, row.reminder.type));
   const daysSinceBackup = prefs?.lastBackupAt ? Math.abs(daysFromToday(prefs.lastBackupAt) ?? 0) : null;
-  const backupStale = (activeAnimals?.length ?? 0) > 0 && (daysSinceBackup === null || daysSinceBackup >= 30);
+  const backupStale = (herdAnimals?.length ?? 0) > 0 && (daysSinceBackup === null || daysSinceBackup >= 30);
 
   return (
     <ScreenContainer fab={<Fab icon="add" label="Log" onPress={() => router.push('/log')} />}>
       <Animated.View entering={FadeInDown.duration(300)} className="gap-1 pt-6">
-        <Text className="text-label uppercase text-tertiary">{formatDateForDisplay(today)}</Text>
         <Text className="text-display font-sans-bold text-primary">{greeting()}</Text>
       </Animated.View>
 
       {/* One grouped panel of figures rather than three competing cards. */}
       <Animated.View entering={FadeInDown.duration(300).delay(60)}>
         <Surface level="raised" className="flex-row p-4">
-          <Metric value={activeAnimals?.length ?? 0} label="In the herd" />
+          <Metric value={herdAnimals?.length ?? 0} label="In the herd" />
           <View className="w-px bg-line" />
           <View className="w-4" />
           <Metric value={inWithdrawal?.length ?? 0} label="In withdrawal" tone="warn" />

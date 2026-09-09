@@ -14,6 +14,8 @@ import { daysFromToday, formatDateForDisplay } from '@/utils/livestockRules';
 interface ReminderCardProps {
   reminder: Reminder;
   animal: Animal | null;
+  /** What a herd-wide routine task applies to, e.g. "All goats". */
+  scopeLabel?: string;
   onDone: () => void;
   onDismiss?: () => void;
   onPressAnimal?: () => void;
@@ -50,7 +52,7 @@ function DoneAction({ drag }: { drag: SharedValue<number> }) {
   );
 }
 
-export function ReminderCard({ reminder, animal, onDone, onDismiss, onPressAnimal, index = 0 }: ReminderCardProps) {
+export function ReminderCard({ reminder, animal, scopeLabel, onDone, onDismiss, onPressAnimal, index = 0 }: ReminderCardProps) {
   const colors = useColors();
   const swipeRef = useRef<SwipeableMethods>(null);
   const meta = REMINDER_TYPE_META[reminder.type];
@@ -96,7 +98,7 @@ export function ReminderCard({ reminder, animal, onDone, onDismiss, onPressAnima
             <View className="flex-1 gap-0.5">
               <Text className="text-body font-sans-semibold text-primary">{reminder.title}</Text>
               <Text className="text-callout text-secondary">
-                {animal ? `${animal.tagNumber}${animal.name ? ` · ${animal.name}` : ''}` : 'Whole herd'}
+                {animal ? `${animal.tagNumber}${animal.name ? ` · ${animal.name}` : ''}` : (scopeLabel ?? 'Whole herd')}
               </Text>
               <Text className={`text-label font-sans-semibold ${TONE_CLASS[due.tone]}`}>
                 {due.text} · {formatDateForDisplay(reminder.dueDate)}
