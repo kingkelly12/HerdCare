@@ -63,9 +63,26 @@ export default function SettingsScreen() {
   // Held locally while typing and written on blur — persisting every keystroke would fight the
   // live query for control of the text field.
   const [milkPrice, setMilkPrice] = useState<string | null>(null);
+  const [eggPrice, setEggPrice] = useState<string | null>(null);
+  const [meatPrice, setMeatPrice] = useState<string | null>(null);
   const [currency, setCurrency] = useState<string | null>(null);
   const milkPriceValue = milkPrice ?? String(prefs?.milkPricePerLitre ?? 0);
+  const eggPriceValue = eggPrice ?? String(prefs?.eggPricePerTray ?? 0);
+  const meatPriceValue = meatPrice ?? String(prefs?.meatPricePerKg ?? 0);
   const currencyValue = currency ?? prefs?.currency ?? 'KES';
+
+  const asPrice = (value: string) => {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  };
+
+  function commitEggPrice() {
+    patchSettings({ eggPricePerTray: asPrice(eggPriceValue) });
+  }
+
+  function commitMeatPrice() {
+    patchSettings({ meatPricePerKg: asPrice(meatPriceValue) });
+  }
 
   function commitMilkPrice() {
     const parsed = Number.parseFloat(milkPriceValue);
@@ -134,9 +151,29 @@ export default function SettingsScreen() {
                 />
               </View>
             </View>
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <TextField
+                  label="Price per tray of eggs"
+                  value={eggPriceValue}
+                  onChangeText={setEggPrice}
+                  onBlur={commitEggPrice}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+              <View className="flex-1">
+                <TextField
+                  label="Price per kg of meat"
+                  value={meatPriceValue}
+                  onChangeText={setMeatPrice}
+                  onBlur={commitMeatPrice}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+            </View>
             <Text className="text-label text-tertiary">
-              What you sell milk for. You can also change it while recording a milking. Each milking keeps the price it
-              was saved with, so updating this never rewrites what you have already earned.
+              Used when you record a milking or a delivery to a customer. Every record keeps the price it was saved
+              with, so raising a price never rewrites what you already earned or what somebody already owes.
             </Text>
           </Surface>
         </View>
@@ -203,6 +240,13 @@ export default function SettingsScreen() {
               subtitle="Deworming, vaccination, spraying"
               divider
               right={toggle(prefs.remindRoutine, (remindRoutine) => patchSettings({ remindRoutine }))}
+            />
+            <Row
+              icon="shield-checkmark-outline"
+              title="Poultry programme"
+              subtitle="Flock vaccinations, feed changes and deworming"
+              divider
+              right={toggle(prefs.remindPoultry, (remindPoultry) => patchSettings({ remindPoultry }))}
             />
           </Surface>
         </View>

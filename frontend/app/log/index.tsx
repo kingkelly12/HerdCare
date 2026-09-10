@@ -10,10 +10,12 @@ const ACTIONS: {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   description: string;
-  path: '/log/milk' | '/log/breeding' | '/log/health' | '/log/birth';
+  path: '/log/milk' | '/log/eggs' | '/customers' | '/log/breeding' | '/log/health' | '/log/birth';
 }[] = [
-  // Milking is first: it is the only one of these a dairy farmer does twice every single day.
+  // Milking and egg collection come first: they are the entries made every single day.
   { icon: 'water', title: 'Milking', description: 'Litres per animal, and what they earned', path: '/log/milk' },
+  { icon: 'egg', title: 'Egg collection', description: 'Trays collected, broken, and lay rate', path: '/log/eggs' },
+  { icon: 'people', title: 'Delivery to a customer', description: 'What a neighbour took, and what they owe', path: '/customers' },
   { icon: 'heart', title: 'Breeding event', description: 'Heat, service, weaning', path: '/log/breeding' },
   { icon: 'medkit', title: 'Health treatment', description: 'Medication, withdrawal period', path: '/log/health' },
   { icon: 'egg', title: 'Birth record', description: 'Offspring count, delivery type', path: '/log/birth' },

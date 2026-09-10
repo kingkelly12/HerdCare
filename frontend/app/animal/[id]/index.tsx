@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Alert, Pressable, Text, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
@@ -167,13 +167,29 @@ export default function AnimalDetailScreen() {
   async function updateStatus(status: AnimalStatus) {
     if (status === animal.status) return;
     const previousStatus = animal.status;
+    const tag = animal.tagNumber;
     await db.update(animals).set({ status, updatedAt: new Date().toISOString() }).where(eq(animals.id, id));
     showUndoToast({
-      message: `Marked ${animal.tagNumber} as ${status.replace('_', ' ')}`,
+      message: `Marked ${tag} as ${status.replace('_', ' ')}`,
       onUndo: async () => {
         await db.update(animals).set({ status: previousStatus, updatedAt: new Date().toISOString() }).where(eq(animals.id, id));
       },
     });
+
+    // The moment of sale is the only time the farmer reliably remembers the figure, so ask now
+    // rather than leaving the income to be reconstructed later — or, as before, lost entirely.
+    if (status === 'sold') {
+      Alert.alert('Record what it sold for?', `You can add the sale price for ${tag} to your books.`, [
+        { text: 'Not now', style: 'cancel' },
+        {
+          text: 'Record sale',
+          onPress: () =>
+            router.push(
+              `/income/new?animalId=${id}&category=animal_sale&description=${encodeURIComponent(`Sold ${tag}`)}`,
+            ),
+        },
+      ]);
+    }
   }
 
   return (

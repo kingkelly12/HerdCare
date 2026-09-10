@@ -37,6 +37,30 @@ export const REMINDER_TYPE_META: Record<ReminderType, ReminderTypeMeta> = {
     defaultLeadDays: 3,
     why: 'Separate the young and adjust feed.',
   },
+  vaccination: {
+    label: 'Vaccination',
+    icon: 'shield-checkmark',
+    defaultLeadDays: 4,
+    why: 'Missing a vaccination window costs far more than the vaccine does.',
+  },
+  feed_change: {
+    label: 'Feed change',
+    icon: 'nutrition',
+    defaultLeadDays: 3,
+    why: 'Change feed gradually over a few days rather than all at once.',
+  },
+  deworming: {
+    label: 'Deworming',
+    icon: 'flask',
+    defaultLeadDays: 4,
+    why: 'Worms quietly eat into growth and laying long before birds look unwell.',
+  },
+  hatching: {
+    label: 'Incubator',
+    icon: 'egg',
+    defaultLeadDays: 1,
+    why: 'Incubation runs to a tight clock, and the last three days especially.',
+  },
   routine: {
     label: 'Routine task',
     icon: 'repeat',
@@ -83,6 +107,7 @@ export function isReminderTypeEnabled(
         remindWithdrawalEnd: boolean;
         remindWeaningDue: boolean;
         remindRoutine: boolean;
+        remindPoultry: boolean;
       }
     | null
     | undefined,
@@ -91,6 +116,11 @@ export function isReminderTypeEnabled(
   // Before the settings row exists, everything shows — silence should be opted into, never default.
   if (!prefs) return true;
   switch (type) {
+    case 'vaccination':
+    case 'feed_change':
+    case 'deworming':
+    case 'hatching':
+      return prefs.remindPoultry;
     case 'heat_return':
       return prefs.remindHeatReturn;
     case 'birth_due':

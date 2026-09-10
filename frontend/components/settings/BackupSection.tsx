@@ -17,6 +17,10 @@ function summarise(summary: RestoreSummary): string {
   if (summary.added.animals) parts.push(`${summary.added.animals} animals`);
   const events = summary.added.breedingEvents + summary.added.birthRecords + summary.added.healthLogs;
   if (events) parts.push(`${events} records`);
+  if (summary.added.milkRecords) parts.push(`${summary.added.milkRecords} milkings`);
+  const money = summary.added.expenses + summary.added.incomeEntries;
+  if (money) parts.push(`${money} money entries`);
+  if (summary.added.flocks) parts.push(`${summary.added.flocks} flocks`);
   if (summary.added.reminderSchedules) parts.push(`${summary.added.reminderSchedules} repeating tasks`);
   if (summary.updated) parts.push(`${summary.updated} updated`);
   return `Restored ${parts.join(', ')}.`;

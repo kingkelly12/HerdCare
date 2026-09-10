@@ -4,10 +4,17 @@ import {
   animals,
   birthRecords,
   breedingEvents,
+  eggRecords,
   expenses,
+  flockEvents,
+  flocks,
+  hatchBatches,
   healthLogs,
+  incomeEntries,
   milkRecords,
   reminders,
+  supplierPayments,
+  suppliers,
   type Animal,
 } from './schema';
 import { startOfTodayIso } from '@/utils/livestockRules';
@@ -42,14 +49,36 @@ export async function deleteAnimalCascade(animalId: string): Promise<void> {
   await db.delete(birthRecords).where(eq(birthRecords.motherId, animalId));
   await db.delete(milkRecords).where(eq(milkRecords.animalId, animalId));
 
-  // Costs are kept: the money was still spent, it just stops being attributed to one animal.
+  // Money is kept: it was still spent and still earned, it just stops being attributed to one
+  // animal. Deleting a record of a sale because the animal left would quietly corrupt the books.
   await db.update(expenses).set({ animalId: null }).where(eq(expenses.animalId, animalId));
+  await db.update(incomeEntries).set({ animalId: null }).where(eq(incomeEntries.animalId, animalId));
 
   const now = new Date().toISOString();
   await db.update(animals).set({ damId: null, updatedAt: now }).where(eq(animals.damId, animalId));
   await db.update(animals).set({ sireId: null, updatedAt: now }).where(eq(animals.sireId, animalId));
 
   await db.delete(animals).where(eq(animals.id, animalId));
+}
+
+/** Removes a supplier, keeping the purchases — the money was still spent. */
+export async function deleteSupplierCascade(supplierId: string): Promise<void> {
+  await db.delete(supplierPayments).where(eq(supplierPayments.supplierId, supplierId));
+  await db.update(expenses).set({ supplierId: null }).where(eq(expenses.supplierId, supplierId));
+  await db.delete(suppliers).where(eq(suppliers.id, supplierId));
+}
+
+/** Removes a flock, its timeline and its egg records. Same manual cascade, same reason. */
+export async function deleteFlockCascade(flockId: string): Promise<void> {
+  await db.delete(flockEvents).where(eq(flockEvents.flockId, flockId));
+  await db.delete(eggRecords).where(eq(eggRecords.flockId, flockId));
+
+  // Incubation records outlive the flock: the hatch still happened, it just loses the link to
+  // the birds the eggs came from or became.
+  await db.update(hatchBatches).set({ sourceFlockId: null }).where(eq(hatchBatches.sourceFlockId, flockId));
+  await db.update(hatchBatches).set({ resultingFlockId: null }).where(eq(hatchBatches.resultingFlockId, flockId));
+
+  await db.delete(flocks).where(eq(flocks.id, flockId));
 }
 
 /**

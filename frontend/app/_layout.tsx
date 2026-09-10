@@ -100,10 +100,57 @@ export default function RootLayout() {
             <Stack.Screen name="log/health" options={{ presentation: 'modal', headerShown: true, title: 'Log treatment' }} />
             <Stack.Screen name="log/birth" options={{ presentation: 'modal', headerShown: true, title: 'Log birth' }} />
             <Stack.Screen name="log/milk" options={{ presentation: 'modal', headerShown: true, title: 'Record milking' }} />
+            <Stack.Screen name="log/eggs" options={{ presentation: 'modal', headerShown: true, title: 'Egg collection' }} />
+            <Stack.Screen name="flock/[id]/index" options={{ headerShown: true, title: '' }} />
+            <Stack.Screen
+              name="flock/[id]/edit"
+              options={{ presentation: 'modal', headerShown: true, title: 'Edit flock' }}
+            />
+            <Stack.Screen
+              name="flock/[id]/log"
+              options={{ presentation: 'modal', headerShown: true, title: 'Log for flock' }}
+            />
+            <Stack.Screen name="flock/new" options={{ presentation: 'modal', headerShown: true, title: 'New flock' }} />
+            <Stack.Screen name="hatch/[id]/index" options={{ headerShown: true, title: '' }} />
+            <Stack.Screen
+              name="hatch/[id]/candle"
+              options={{ presentation: 'modal', headerShown: true, title: 'Candling' }}
+            />
+            <Stack.Screen
+              name="hatch/[id]/hatch"
+              options={{ presentation: 'modal', headerShown: true, title: 'Record hatch' }}
+            />
+            <Stack.Screen name="hatch/new" options={{ presentation: 'modal', headerShown: true, title: 'Set eggs' }} />
+            <Stack.Screen name="customers/index" options={{ headerShown: true, title: 'Customers' }} />
+            <Stack.Screen name="customers/[id]/index" options={{ headerShown: true, title: '' }} />
+            <Stack.Screen
+              name="customers/[id]/deliver"
+              options={{ presentation: 'modal', headerShown: true, title: 'Record delivery' }}
+            />
+            <Stack.Screen
+              name="customers/[id]/pay"
+              options={{ presentation: 'modal', headerShown: true, title: 'Record payment' }}
+            />
+            <Stack.Screen
+              name="customers/new"
+              options={{ presentation: 'modal', headerShown: true, title: 'New customer' }}
+            />
+            <Stack.Screen name="suppliers/index" options={{ headerShown: true, title: 'Who I owe' }} />
+            <Stack.Screen name="suppliers/[id]/index" options={{ headerShown: true, title: '' }} />
+            <Stack.Screen
+              name="suppliers/[id]/pay"
+              options={{ presentation: 'modal', headerShown: true, title: 'Record payment' }}
+            />
+            <Stack.Screen
+              name="suppliers/new"
+              options={{ presentation: 'modal', headerShown: true, title: 'New supplier' }}
+            />
+            <Stack.Screen name="money/new" options={{ presentation: 'modal', headerShown: true, title: 'Add to books' }} />
             <Stack.Screen
               name="expense/new"
-              options={{ presentation: 'modal', headerShown: true, title: 'Add expense' }}
+              options={{ presentation: 'modal', headerShown: true, title: 'Money out' }}
             />
+            <Stack.Screen name="income/new" options={{ presentation: 'modal', headerShown: true, title: 'Money in' }} />
             <Stack.Screen name="reminders" options={{ headerShown: true, title: 'Reminders' }} />
             <Stack.Screen
               name="schedule/new"

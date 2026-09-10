@@ -5,6 +5,9 @@ import {
   birthRecords,
   breedingEvents,
   DERIVED_REMINDER_TYPES,
+  flockEvents,
+  flocks,
+  hatchBatches,
   healthLogs,
   reminderSchedules,
   reminders,
@@ -13,6 +16,7 @@ import {
 import { addDaysIso, startOfTodayIso } from '@/utils/livestockRules';
 import { REMINDER_TYPE_META } from '@/utils/reminderRules';
 import { computeDerivedReminders } from '@/utils/reminderProjection';
+import { computeHatchReminders, computePoultryReminders } from '@/utils/poultryProjection';
 
 /**
  * Anything older than this is not worth surfacing — a farmer entering a season of back-history
@@ -33,11 +37,13 @@ const MAX_OVERDUE_DAYS = 30;
 export async function rebuildDerivedReminders(): Promise<void> {
   const floor = addDaysIso(startOfTodayIso(), -MAX_OVERDUE_DAYS);
 
-  const [animalRows, breedingRows, birthRows, healthRows] = await Promise.all([
+  const [animalRows, breedingRows, birthRows, healthRows, flockRows, hatchRows] = await Promise.all([
     db.select().from(animals),
     db.select().from(breedingEvents),
     db.select().from(birthRecords),
     db.select().from(healthLogs).where(isNotNull(healthLogs.withdrawalEndDate)),
+    db.select().from(flocks),
+    db.select().from(hatchBatches),
   ]);
 
   const fresh = computeDerivedReminders({
@@ -47,9 +53,41 @@ export async function rebuildDerivedReminders(): Promise<void> {
     healthLogs: healthRows,
     floorDate: floor,
   });
+
+  // Poultry rides the same projection: the flock's age implies its vaccinations, feed changes and
+  // deworming exactly as a service date implies a due date. `sourceTable: 'flocks'` with a
+  // `flockId:itemKey` source id gives each scheduled item its own row per flock under the
+  // existing natural key, so the upsert and the stale sweep below need no special cases.
+  const poultry = computePoultryReminders({ flocks: flockRows, floorDate: floor, today: startOfTodayIso() }).map(
+    (reminder) => ({
+      sourceTable: 'flocks' as const,
+      sourceEventId: reminder.sourceEventId,
+      type: reminder.type,
+      animalId: null,
+      flockId: reminder.flockId,
+      title: reminder.title,
+      dueDate: reminder.dueDate,
+      leadDays: reminder.leadDays,
+      notes: reminder.notes,
+    }),
+  );
+
+  const hatching = computeHatchReminders({ batches: hatchRows, floorDate: floor }).map((reminder) => ({
+    sourceTable: 'hatch_batches' as const,
+    sourceEventId: reminder.sourceEventId,
+    type: 'hatching' as const,
+    animalId: null,
+    flockId: null,
+    hatchBatchId: reminder.hatchBatchId,
+    title: reminder.title,
+    dueDate: reminder.dueDate,
+    leadDays: reminder.leadDays,
+    notes: reminder.notes,
+  }));
+
   const now = new Date().toISOString();
 
-  for (const reminder of fresh) {
+  for (const reminder of [...fresh, ...poultry, ...hatching]) {
     await db
       .insert(reminders)
       .values({ ...reminder, status: 'pending' })
@@ -58,7 +96,9 @@ export async function rebuildDerivedReminders(): Promise<void> {
         // Status is deliberately absent: a reminder the farmer already ticked off must not
         // spring back to pending just because the projection was recomputed.
         set: {
-          animalId: reminder.animalId,
+          animalId: 'animalId' in reminder ? reminder.animalId : null,
+          flockId: 'flockId' in reminder ? reminder.flockId : null,
+          hatchBatchId: 'hatchBatchId' in reminder ? reminder.hatchBatchId : null,
           title: reminder.title,
           dueDate: reminder.dueDate,
           leadDays: reminder.leadDays,
@@ -68,7 +108,9 @@ export async function rebuildDerivedReminders(): Promise<void> {
   }
 
   // Drop pending derived reminders whose source no longer implies them.
-  const keep = new Set(fresh.map((r) => `${r.sourceTable}|${r.sourceEventId}|${r.type}`));
+  const keep = new Set(
+    [...fresh, ...poultry, ...hatching].map((r) => `${r.sourceTable}|${r.sourceEventId}|${r.type}`),
+  );
   const existing = await db
     .select({ id: reminders.id, sourceTable: reminders.sourceTable, sourceEventId: reminders.sourceEventId, type: reminders.type })
     .from(reminders)
@@ -112,6 +154,17 @@ export async function completeReminder(reminderId: string): Promise<void> {
   if (!reminder) return;
 
   await db.update(reminders).set({ status: 'done', completedAt: now, updatedAt: now }).where(eq(reminders.id, reminderId));
+
+  // Ticking off a poultry reminder writes it onto the flock's own timeline, so the record of what
+  // was actually given lives with the flock rather than only as a reminder that stopped showing.
+  if (reminder.flockId && (reminder.type === 'vaccination' || reminder.type === 'feed_change' || reminder.type === 'deworming')) {
+    await db.insert(flockEvents).values({
+      flockId: reminder.flockId,
+      type: reminder.type === 'feed_change' ? 'feed_change' : reminder.type === 'deworming' ? 'deworming' : 'vaccination',
+      eventDate: startOfTodayIso(),
+      description: reminder.title,
+    });
+  }
 
   if (reminder.type === 'routine' && reminder.scheduleId) {
     const [schedule] = await db.select().from(reminderSchedules).where(eq(reminderSchedules.id, reminder.scheduleId));

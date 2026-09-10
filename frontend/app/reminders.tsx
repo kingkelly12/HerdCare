@@ -10,7 +10,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ReminderCard } from '@/components/reminders/ReminderCard';
 import { db } from '@/db/client';
 import { completeReminder, dismissReminder } from '@/db/reminders';
-import { animals, reminderSchedules, reminders, settings } from '@/db/schema';
+import { currentFlockCount } from '@/db/flocks';
+import { animals, flockEvents, flocks, reminderSchedules, reminders, settings } from '@/db/schema';
 import { refreshRemindersAndNotifications, refreshReminderData } from '@/lib/reminderSync';
 import { daysFromToday } from '@/utils/livestockRules';
 import { isReminderTypeEnabled } from '@/utils/reminderRules';
@@ -27,16 +28,20 @@ export default function RemindersScreen() {
   // scoped to goats used to read the same as one for the whole herd.
   const { data } = useLiveQuery(
     db
-      .select({ reminder: reminders, animal: animals, schedule: reminderSchedules })
+      .select({ reminder: reminders, animal: animals, schedule: reminderSchedules, flock: flocks })
       .from(reminders)
       .leftJoin(animals, eq(reminders.animalId, animals.id))
       .leftJoin(reminderSchedules, eq(reminders.scheduleId, reminderSchedules.id))
+      .leftJoin(flocks, eq(reminders.flockId, flocks.id))
       .where(eq(reminders.status, 'pending'))
       .orderBy(asc(reminders.dueDate)),
   );
 
   const { data: settingsRows } = useLiveQuery(db.select().from(settings).where(eq(settings.id, 'default')));
   const prefs = settingsRows?.[0];
+
+  // Needed to show a flock's live bird count next to whatever it is owed.
+  const { data: flockEventRows } = useLiveQuery(db.select().from(flockEvents));
 
   // Switching a type off in Settings hides it here too, not just in the daily notification.
   const rows = (data ?? []).filter((row) => isReminderTypeEnabled(prefs, row.reminder.type));
@@ -89,22 +94,30 @@ export default function RemindersScreen() {
               <Text className={`text-label font-sans-semibold uppercase ${section.tone}`}>
                 {section.title} · {section.rows.length}
               </Text>
-              {section.rows.map(({ reminder, animal, schedule }, i) => (
+              {section.rows.map(({ reminder, animal, schedule, flock }, i) => (
                 <ReminderCard
                   key={reminder.id}
                   reminder={reminder}
                   animal={animal}
                   scopeLabel={
-                    schedule
-                      ? schedule.speciesFilter
-                        ? `All ${SPECIES_RULES[schedule.speciesFilter].label.toLowerCase()}s`
-                        : 'Whole herd'
-                      : undefined
+                    flock
+                      ? `${flock.name} · ${currentFlockCount(flock, (flockEventRows ?? []).filter((e) => e.flockId === flock.id))} birds`
+                      : schedule
+                        ? schedule.speciesFilter
+                          ? `All ${SPECIES_RULES[schedule.speciesFilter].label.toLowerCase()}s`
+                          : 'Whole herd'
+                        : undefined
                   }
                   index={i}
                   onDone={() => handleDone(reminder.id)}
                   onDismiss={() => handleDismiss(reminder.id)}
-                  onPressAnimal={animal ? () => router.push(`/animal/${animal.id}`) : undefined}
+                  onPressAnimal={
+                    animal
+                      ? () => router.push(`/animal/${animal.id}`)
+                      : flock
+                        ? () => router.push(`/flock/${flock.id}`)
+                        : undefined
+                  }
                 />
               ))}
             </View>

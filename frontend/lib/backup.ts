@@ -8,14 +8,38 @@ import {
   animals,
   birthRecords,
   breedingEvents,
+  customerPayments,
+  customers,
+  deliveries,
+  expenses,
+  eggRecords,
+  flockEvents,
+  flocks,
+  hatchBatches,
   healthLogs,
+  incomeEntries,
+  milkRecords,
   reminderSchedules,
   settings,
+  supplierPayments,
+  suppliers,
   type Animal,
   type BirthRecord,
   type BreedingEvent,
+  type Customer,
+  type CustomerPayment,
+  type Delivery,
+  type Expense,
+  type EggRecord,
+  type Flock,
+  type FlockEvent,
+  type HatchBatch,
   type HealthLog,
+  type IncomeEntry,
+  type MilkRecord,
   type ReminderSchedule,
+  type Supplier,
+  type SupplierPayment,
 } from '@/db/schema';
 import { updateSettings } from '@/db/reminders';
 import { buildBackupReportHtml } from './backupReport';
@@ -41,6 +65,18 @@ export interface BackupBundle {
     breedingEvents: BreedingEvent[];
     birthRecords: BirthRecord[];
     healthLogs: HealthLog[];
+    milkRecords: MilkRecord[];
+    expenses: Expense[];
+    incomeEntries: IncomeEntry[];
+    flocks: Flock[];
+    flockEvents: FlockEvent[];
+    eggRecords: EggRecord[];
+    hatchBatches: HatchBatch[];
+    suppliers: Supplier[];
+    supplierPayments: SupplierPayment[];
+    customers: Customer[];
+    deliveries: Delivery[];
+    customerPayments: CustomerPayment[];
     reminderSchedules: ReminderSchedule[];
     settings: Record<string, unknown>[];
   };
@@ -51,11 +87,42 @@ function dateStamp(date = new Date()): string {
 }
 
 export async function buildBackup(): Promise<BackupBundle> {
-  const [animalRows, breedingRows, birthRows, healthRows, scheduleRows, settingsRows] = await Promise.all([
+  const [
+    animalRows,
+    breedingRows,
+    birthRows,
+    healthRows,
+    milkRows,
+    expenseRows,
+    incomeRows,
+    flockRows,
+    flockEventRows,
+    eggRows,
+    hatchRows,
+    supplierRows,
+    supplierPaymentRows,
+    customerRows,
+    deliveryRows,
+    paymentRows,
+    scheduleRows,
+    settingsRows,
+  ] = await Promise.all([
     db.select().from(animals),
     db.select().from(breedingEvents),
     db.select().from(birthRecords),
     db.select().from(healthLogs),
+    db.select().from(milkRecords),
+    db.select().from(expenses),
+    db.select().from(incomeEntries),
+    db.select().from(flocks),
+    db.select().from(flockEvents),
+    db.select().from(eggRecords),
+    db.select().from(hatchBatches),
+    db.select().from(suppliers),
+    db.select().from(supplierPayments),
+    db.select().from(customers),
+    db.select().from(deliveries),
+    db.select().from(customerPayments),
     db.select().from(reminderSchedules),
     db.select().from(settings),
   ]);
@@ -69,6 +136,18 @@ export async function buildBackup(): Promise<BackupBundle> {
       breedingEvents: breedingRows.length,
       birthRecords: birthRows.length,
       healthLogs: healthRows.length,
+      milkRecords: milkRows.length,
+      expenses: expenseRows.length,
+      incomeEntries: incomeRows.length,
+      flocks: flockRows.length,
+      flockEvents: flockEventRows.length,
+      eggRecords: eggRows.length,
+      hatchBatches: hatchRows.length,
+      suppliers: supplierRows.length,
+      supplierPayments: supplierPaymentRows.length,
+      customers: customerRows.length,
+      deliveries: deliveryRows.length,
+      customerPayments: paymentRows.length,
       reminderSchedules: scheduleRows.length,
     },
     data: {
@@ -76,6 +155,18 @@ export async function buildBackup(): Promise<BackupBundle> {
       breedingEvents: breedingRows,
       birthRecords: birthRows,
       healthLogs: healthRows,
+      milkRecords: milkRows,
+      expenses: expenseRows,
+      incomeEntries: incomeRows,
+      flocks: flockRows,
+      flockEvents: flockEventRows,
+      eggRecords: eggRows,
+      hatchBatches: hatchRows,
+      suppliers: supplierRows,
+      supplierPayments: supplierPaymentRows,
+      customers: customerRows,
+      deliveries: deliveryRows,
+      customerPayments: paymentRows,
       reminderSchedules: scheduleRows,
       settings: settingsRows as unknown as Record<string, unknown>[],
     },
@@ -184,7 +275,25 @@ const idSet = (rows: { id: string }[]) => new Set(rows.map((row) => row.id));
  */
 export async function restoreBackup(bundle: BackupBundle): Promise<RestoreSummary> {
   const summary: RestoreSummary = {
-    added: { animals: 0, breedingEvents: 0, birthRecords: 0, healthLogs: 0, reminderSchedules: 0 },
+    added: {
+      animals: 0,
+      breedingEvents: 0,
+      birthRecords: 0,
+      healthLogs: 0,
+      milkRecords: 0,
+      expenses: 0,
+      incomeEntries: 0,
+      flocks: 0,
+      flockEvents: 0,
+      eggRecords: 0,
+      hatchBatches: 0,
+      suppliers: 0,
+      supplierPayments: 0,
+      customers: 0,
+      deliveries: 0,
+      customerPayments: 0,
+      reminderSchedules: 0,
+    },
     updated: 0,
     skipped: 0,
     exportedAt: bundle.exportedAt,
@@ -244,6 +353,154 @@ export async function restoreBackup(bundle: BackupBundle): Promise<RestoreSummar
     await db.insert(healthLogs).values(row);
     knownHealth.add(row.id);
     summary.added.healthLogs++;
+  }
+
+  const knownMilk = idSet(await db.select({ id: milkRecords.id }).from(milkRecords));
+  for (const row of bundle.data.milkRecords ?? []) {
+    if (!acceptable(row?.id, row?.animalId, knownMilk)) continue;
+    await db.insert(milkRecords).values(row);
+    knownMilk.add(row.id);
+    summary.added.milkRecords = (summary.added.milkRecords ?? 0) + 1;
+  }
+
+  // Money is restored even when the animal it referenced is gone — the transaction still happened,
+  // so the link is dropped rather than the record. Losing it would understate the farmer's books.
+  const knownSuppliers = idSet(await db.select({ id: suppliers.id }).from(suppliers));
+  for (const row of bundle.data.suppliers ?? []) {
+    if (!row?.id || knownSuppliers.has(row.id)) {
+      summary.skipped++;
+      continue;
+    }
+    await db.insert(suppliers).values(row);
+    knownSuppliers.add(row.id);
+    summary.added.suppliers = (summary.added.suppliers ?? 0) + 1;
+  }
+
+  const knownSupplierPayments = idSet(await db.select({ id: supplierPayments.id }).from(supplierPayments));
+  for (const row of bundle.data.supplierPayments ?? []) {
+    if (!row?.id || knownSupplierPayments.has(row.id) || !row.supplierId || !knownSuppliers.has(row.supplierId)) {
+      summary.skipped++;
+      continue;
+    }
+    await db.insert(supplierPayments).values(row);
+    knownSupplierPayments.add(row.id);
+    summary.added.supplierPayments = (summary.added.supplierPayments ?? 0) + 1;
+  }
+
+  const knownExpenses = idSet(await db.select({ id: expenses.id }).from(expenses));
+  for (const row of bundle.data.expenses ?? []) {
+    if (!row?.id || knownExpenses.has(row.id)) {
+      summary.skipped++;
+      continue;
+    }
+    await db.insert(expenses).values({
+      ...row,
+      animalId: row.animalId && knownAnimals.has(row.animalId) ? row.animalId : null,
+      supplierId: row.supplierId && knownSuppliers.has(row.supplierId) ? row.supplierId : null,
+    });
+    knownExpenses.add(row.id);
+    summary.added.expenses = (summary.added.expenses ?? 0) + 1;
+  }
+
+  const knownIncome = idSet(await db.select({ id: incomeEntries.id }).from(incomeEntries));
+  for (const row of bundle.data.incomeEntries ?? []) {
+    if (!row?.id || knownIncome.has(row.id)) {
+      summary.skipped++;
+      continue;
+    }
+    await db
+      .insert(incomeEntries)
+      .values({ ...row, animalId: row.animalId && knownAnimals.has(row.animalId) ? row.animalId : null });
+    knownIncome.add(row.id);
+    summary.added.incomeEntries = (summary.added.incomeEntries ?? 0) + 1;
+  }
+
+  // Flocks stand alone — they reference no animal, so they restore before their own events.
+  const knownFlocks = idSet(await db.select({ id: flocks.id }).from(flocks));
+  for (const row of bundle.data.flocks ?? []) {
+    if (!row?.id || knownFlocks.has(row.id)) {
+      summary.skipped++;
+      continue;
+    }
+    await db.insert(flocks).values(row);
+    knownFlocks.add(row.id);
+    summary.added.flocks = (summary.added.flocks ?? 0) + 1;
+  }
+
+  const knownFlockEvents = idSet(await db.select({ id: flockEvents.id }).from(flockEvents));
+  for (const row of bundle.data.flockEvents ?? []) {
+    // An event whose flock is missing would silently distort that flock's bird count, so it is
+    // dropped for the same reason an orphaned animal event is.
+    if (!row?.id || knownFlockEvents.has(row.id) || !row.flockId || !knownFlocks.has(row.flockId)) {
+      summary.skipped++;
+      continue;
+    }
+    await db.insert(flockEvents).values(row);
+    knownFlockEvents.add(row.id);
+    summary.added.flockEvents = (summary.added.flockEvents ?? 0) + 1;
+  }
+
+  const knownEggs = idSet(await db.select({ id: eggRecords.id }).from(eggRecords));
+  for (const row of bundle.data.eggRecords ?? []) {
+    // Same orphan rule as flock events: a collection with no flock would count toward nothing.
+    if (!row?.id || knownEggs.has(row.id) || !row.flockId || !knownFlocks.has(row.flockId)) {
+      summary.skipped++;
+      continue;
+    }
+    await db.insert(eggRecords).values(row);
+    knownEggs.add(row.id);
+    summary.added.eggRecords = (summary.added.eggRecords ?? 0) + 1;
+  }
+
+  const knownHatches = idSet(await db.select({ id: hatchBatches.id }).from(hatchBatches));
+  for (const row of bundle.data.hatchBatches ?? []) {
+    if (!row?.id || knownHatches.has(row.id)) {
+      summary.skipped++;
+      continue;
+    }
+    // Both flock links are optional, so a batch outlives a flock that did not come back.
+    await db.insert(hatchBatches).values({
+      ...row,
+      sourceFlockId: row.sourceFlockId && knownFlocks.has(row.sourceFlockId) ? row.sourceFlockId : null,
+      resultingFlockId: row.resultingFlockId && knownFlocks.has(row.resultingFlockId) ? row.resultingFlockId : null,
+    });
+    knownHatches.add(row.id);
+    summary.added.hatchBatches = (summary.added.hatchBatches ?? 0) + 1;
+  }
+
+  const knownCustomers = idSet(await db.select({ id: customers.id }).from(customers));
+  for (const row of bundle.data.customers ?? []) {
+    if (!row?.id || knownCustomers.has(row.id)) {
+      summary.skipped++;
+      continue;
+    }
+    await db.insert(customers).values(row);
+    knownCustomers.add(row.id);
+    summary.added.customers = (summary.added.customers ?? 0) + 1;
+  }
+
+  // A delivery or payment with no customer would leave money floating against nobody, which is
+  // worse than losing the row — the balance it belongs to could never be reached again.
+  const knownDeliveries = idSet(await db.select({ id: deliveries.id }).from(deliveries));
+  for (const row of bundle.data.deliveries ?? []) {
+    if (!row?.id || knownDeliveries.has(row.id) || !row.customerId || !knownCustomers.has(row.customerId)) {
+      summary.skipped++;
+      continue;
+    }
+    await db.insert(deliveries).values(row);
+    knownDeliveries.add(row.id);
+    summary.added.deliveries = (summary.added.deliveries ?? 0) + 1;
+  }
+
+  const knownPayments = idSet(await db.select({ id: customerPayments.id }).from(customerPayments));
+  for (const row of bundle.data.customerPayments ?? []) {
+    if (!row?.id || knownPayments.has(row.id) || !row.customerId || !knownCustomers.has(row.customerId)) {
+      summary.skipped++;
+      continue;
+    }
+    await db.insert(customerPayments).values(row);
+    knownPayments.add(row.id);
+    summary.added.customerPayments = (summary.added.customerPayments ?? 0) + 1;
   }
 
   const knownSchedules = idSet(await db.select({ id: reminderSchedules.id }).from(reminderSchedules));
