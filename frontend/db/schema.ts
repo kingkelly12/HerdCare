@@ -84,6 +84,14 @@ export const DEFAULT_INCUBATION_DAYS = 21;
 export const DELIVERY_PRODUCTS = ['milk', 'eggs', 'meat', 'live_animal'] as const;
 export type DeliveryProduct = (typeof DELIVERY_PRODUCTS)[number];
 
+/**
+ * Eggs go out either by the tray or loose by the egg, and the two are not the same price — a
+ * single egg fetches more than a thirtieth of a tray. So a delivery records which unit it was
+ * sold in rather than converting between them.
+ */
+export const EGG_UNITS = ['tray', 'egg'] as const;
+export type EggUnit = (typeof EGG_UNITS)[number];
+
 /** Deliveries of these count toward revenue; milk does not, because milking already did. */
 export const REVENUE_BEARING_PRODUCTS = ['eggs', 'meat', 'live_animal'] as const;
 
@@ -493,8 +501,13 @@ export const deliveries = sqliteTable(
       .references(() => customers.id, { onDelete: 'cascade' }),
     product: text('product', { enum: DELIVERY_PRODUCTS }).notNull(),
     deliveryDate: text('delivery_date').notNull(),
-    /** Litres, trays, kilos or head, depending on the product. */
+    /** Litres, trays, eggs, kilos or head, depending on the product and the unit below. */
     quantity: real('quantity').notNull(),
+    /**
+     * What one unit of `quantity` is. Only eggs are ambiguous today (tray or egg), so this is
+     * nullable and falls back to the product's usual unit for anything recorded before it existed.
+     */
+    unit: text('unit'),
     unitPrice: real('unit_price').notNull(),
     notes: text('notes'),
     createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
@@ -625,6 +638,8 @@ export const settings = sqliteTable('settings', {
   milkPricePerLitre: real('milk_price_per_litre').notNull().default(0),
   /** Standing prices for what customers take on credit. Copied onto each delivery when saved. */
   eggPricePerTray: real('egg_price_per_tray').notNull().default(0),
+  /** Loose eggs are priced separately — they normally fetch more than a share of a tray. */
+  eggPricePerEgg: real('egg_price_per_egg').notNull().default(0),
   meatPricePerKg: real('meat_price_per_kg').notNull().default(0),
   currency: text('currency').notNull().default('KES'),
   createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),

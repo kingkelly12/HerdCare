@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Text } from 'react-native';
+import { Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { eq } from 'drizzle-orm';
@@ -11,12 +11,18 @@ import { Callout } from '@/components/ui/Callout';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { db } from '@/db/client';
-import { PRODUCT_META, PRODUCT_OPTIONS } from '@/db/customers';
+import { PRODUCT_META, PRODUCT_OPTIONS, formatQuantity, unitPriceLabel } from '@/db/customers';
+import { Segmented } from '@/components/ui/Segmented';
 import { getSettings } from '@/db/reminders';
-import { customers, deliveries, type DeliveryProduct } from '@/db/schema';
+import { EGG_UNITS, customers, deliveries, type DeliveryProduct, type EggUnit } from '@/db/schema';
 import { getRelativeDateIso } from '@/utils/livestockRules';
 import { formatMoney } from '@/utils/money';
 import { notifySaved } from '@/lib/haptics';
+
+const EGG_UNIT_OPTIONS = EGG_UNITS.map((value) => ({
+  value,
+  label: value === 'tray' ? 'The tray' : 'The egg',
+}));
 
 export default function RecordDeliveryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -24,11 +30,13 @@ export default function RecordDeliveryScreen() {
   const customer = rows?.[0];
 
   const [product, setProduct] = useState<DeliveryProduct>('milk');
+  // Eggs go out by the tray or loose by the egg, at different prices.
+  const [eggUnit, setEggUnit] = useState<EggUnit>('tray');
   const [quantity, setQuantity] = useState('');
   const [unitPrice, setUnitPrice] = useState('');
   const [deliveryDate, setDeliveryDate] = useState(getRelativeDateIso(0));
   const [currency, setCurrency] = useState('KES');
-  const [prices, setPrices] = useState({ milk: 0, eggs: 0, meat: 0 });
+  const [prices, setPrices] = useState({ milk: 0, tray: 0, egg: 0, meat: 0 });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,7 +47,8 @@ export default function RecordDeliveryScreen() {
         setCurrency(prefs.currency ?? 'KES');
         setPrices({
           milk: prefs.milkPricePerLitre ?? 0,
-          eggs: prefs.eggPricePerTray ?? 0,
+          tray: prefs.eggPricePerTray ?? 0,
+          egg: prefs.eggPricePerEgg ?? 0,
           meat: prefs.meatPricePerKg ?? 0,
         });
       })
@@ -53,8 +62,12 @@ export default function RecordDeliveryScreen() {
       setUnitPrice('');
       return;
     }
+    if (product === 'eggs') {
+      setUnitPrice(String(prices[eggUnit] ?? 0));
+      return;
+    }
     setUnitPrice(String(prices[product] ?? 0));
-  }, [product, prices]);
+  }, [product, eggUnit, prices]);
 
   const quantityNumber = Number.parseFloat(quantity);
   const priceNumber = Number.parseFloat(unitPrice);
@@ -62,7 +75,14 @@ export default function RecordDeliveryScreen() {
   const validPrice = Number.isFinite(priceNumber) && priceNumber >= 0;
   const canSave = validQuantity && validPrice;
   const value = canSave ? quantityNumber * priceNumber : 0;
-  const meta = PRODUCT_META[product];
+  const quantityLabel =
+    product === 'live_animal'
+      ? 'How many animals'
+      : product === 'eggs'
+        ? eggUnit === 'egg'
+          ? 'How many eggs'
+          : 'How many trays'
+        : `How many ${PRODUCT_META[product].unitLong}`;
 
   async function handleSave() {
     if (!canSave) return;
@@ -74,6 +94,8 @@ export default function RecordDeliveryScreen() {
         product,
         deliveryDate,
         quantity: quantityNumber,
+        // Only eggs carry a unit; everything else has just the one.
+        unit: product === 'eggs' ? eggUnit : null,
         unitPrice: priceNumber,
       });
       notifySaved();
@@ -99,8 +121,15 @@ export default function RecordDeliveryScreen() {
 
       <SelectGroup label="Product" required options={PRODUCT_OPTIONS} value={product} onChange={setProduct} />
 
+      {product === 'eggs' ? (
+        <View className="gap-2">
+          <Text className="text-label font-sans-semibold uppercase text-tertiary">Sold by</Text>
+          <Segmented options={EGG_UNIT_OPTIONS} value={eggUnit} onChange={setEggUnit} />
+        </View>
+      ) : null}
+
       <TextField
-        label={product === 'live_animal' ? 'How many animals' : `How many ${meta.unitLong}`}
+        label={quantityLabel}
         required
         value={quantity}
         onChangeText={setQuantity}
@@ -109,7 +138,7 @@ export default function RecordDeliveryScreen() {
       />
 
       <TextField
-        label={`Price ${product === 'live_animal' ? 'each' : `per ${meta.unit || 'unit'}`} (${currency})`}
+        label={`Price ${unitPriceLabel(product, eggUnit)} (${currency})`}
         required
         value={unitPrice}
         onChangeText={setUnitPrice}
@@ -124,7 +153,11 @@ export default function RecordDeliveryScreen() {
 
       <QuickDateSelector label="When" valueIso={deliveryDate} onChange={setDeliveryDate} />
 
-      {canSave ? <Callout tone="warn">{`Adds ${formatMoney(value, currency)} to what they owe`}</Callout> : null}
+      {canSave ? (
+        <Callout tone="warn">
+          {`${formatQuantity({ product, unit: product === 'eggs' ? eggUnit : null, quantity: quantityNumber })} · adds ${formatMoney(value, currency)} to what they owe`}
+        </Callout>
+      ) : null}
 
       {product === 'milk' ? (
         <Text className="text-label text-tertiary">

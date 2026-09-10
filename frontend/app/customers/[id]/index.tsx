@@ -9,7 +9,15 @@ import { Surface } from '@/components/ui/Surface';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { db } from '@/db/client';
-import { PRODUCT_META, customerBalance, deliveryValue, formatQuantity, totalDelivered, totalPaid } from '@/db/customers';
+import {
+  PRODUCT_META,
+  customerBalance,
+  deliveryValue,
+  formatQuantity,
+  totalDelivered,
+  totalPaid,
+  unitPriceLabel,
+} from '@/db/customers';
 import { customerPayments, customers, deliveries, settings } from '@/db/schema';
 import { useColors } from '@/theme/colors';
 import { formatDateForDisplay } from '@/utils/livestockRules';
@@ -54,8 +62,8 @@ export default function CustomerDetailScreen() {
     ...deliveryRows.map((row) => ({
       key: `d-${row.id}`,
       date: row.deliveryDate,
-      title: `${PRODUCT_META[row.product].label} · ${formatQuantity(row.product, row.quantity)}`,
-      subtitle: `${formatMoney(row.unitPrice, currency)} each`,
+      title: `${PRODUCT_META[row.product].label} · ${formatQuantity(row)}`,
+      subtitle: `${formatMoney(row.unitPrice, currency)} ${unitPriceLabel(row.product, row.unit === 'egg' ? 'egg' : 'tray')}`,
       amount: deliveryValue(row),
       kind: 'delivery' as const,
     })),

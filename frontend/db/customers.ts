@@ -1,5 +1,11 @@
 import type { Ionicons } from '@expo/vector-icons';
-import { REVENUE_BEARING_PRODUCTS, type CustomerPayment, type Delivery, type DeliveryProduct } from './schema';
+import {
+  REVENUE_BEARING_PRODUCTS,
+  type CustomerPayment,
+  type Delivery,
+  type DeliveryProduct,
+  type EggUnit,
+} from './schema';
 
 export const PRODUCT_META: Record<
   DeliveryProduct,
@@ -15,6 +21,17 @@ export const PRODUCT_OPTIONS = (Object.keys(PRODUCT_META) as DeliveryProduct[]).
   value,
   label: PRODUCT_META[value].label,
 }));
+
+/**
+ * The unit a delivery was sold in.
+ *
+ * Only eggs offer a choice, and `unit` is nullable so anything recorded before loose eggs existed
+ * still reads correctly — it falls back to the product's usual unit rather than showing nothing.
+ */
+export function deliveryUnit(delivery: Pick<Delivery, 'product' | 'unit'>): string {
+  if (delivery.product === 'eggs') return delivery.unit === 'egg' ? 'egg' : 'tray';
+  return PRODUCT_META[delivery.product].unit;
+}
 
 /** What one delivery is worth. Computed, so the price and the total can never disagree. */
 export function deliveryValue(delivery: Pick<Delivery, 'quantity' | 'unitPrice'>): number {
@@ -51,10 +68,22 @@ export function deliveryRevenue(deliveries: Pick<Delivery, 'product' | 'quantity
     .reduce((sum, delivery) => sum + deliveryValue(delivery), 0);
 }
 
-/** Formats a quantity with the unit that fits the product — "12 L", "3 trays", "2 animals". */
-export function formatQuantity(product: DeliveryProduct, quantity: number): string {
-  const rounded = Math.round(quantity * 10) / 10;
-  const meta = PRODUCT_META[product];
-  if (product === 'live_animal') return `${rounded} ${rounded === 1 ? 'animal' : 'animals'}`;
-  return `${rounded} ${meta.unit}`;
+/** Formats a quantity in whatever unit it was sold in — "12 L", "3 trays", "8 eggs", "2 animals". */
+export function formatQuantity(delivery: Pick<Delivery, 'product' | 'unit' | 'quantity'>): string {
+  const rounded = Math.round(delivery.quantity * 10) / 10;
+  if (delivery.product === 'live_animal') return `${rounded} ${rounded === 1 ? 'animal' : 'animals'}`;
+  if (delivery.product === 'eggs') {
+    const unit = deliveryUnit(delivery);
+    if (unit === 'egg') return `${rounded} ${rounded === 1 ? 'egg' : 'eggs'}`;
+    return `${rounded} ${rounded === 1 ? 'tray' : 'trays'}`;
+  }
+  return `${rounded} ${PRODUCT_META[delivery.product].unit}`;
+}
+
+/** How one unit reads on a price label — "per litre", "per tray", "each". */
+export function unitPriceLabel(product: DeliveryProduct, eggUnit: EggUnit): string {
+  if (product === 'live_animal') return 'each';
+  if (product === 'eggs') return eggUnit === 'egg' ? 'per egg' : 'per tray';
+  if (product === 'milk') return 'per litre';
+  return 'per kg';
 }

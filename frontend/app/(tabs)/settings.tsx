@@ -64,10 +64,12 @@ export default function SettingsScreen() {
   // live query for control of the text field.
   const [milkPrice, setMilkPrice] = useState<string | null>(null);
   const [eggPrice, setEggPrice] = useState<string | null>(null);
+  const [eggUnitPrice, setEggUnitPrice] = useState<string | null>(null);
   const [meatPrice, setMeatPrice] = useState<string | null>(null);
   const [currency, setCurrency] = useState<string | null>(null);
   const milkPriceValue = milkPrice ?? String(prefs?.milkPricePerLitre ?? 0);
   const eggPriceValue = eggPrice ?? String(prefs?.eggPricePerTray ?? 0);
+  const eggUnitPriceValue = eggUnitPrice ?? String(prefs?.eggPricePerEgg ?? 0);
   const meatPriceValue = meatPrice ?? String(prefs?.meatPricePerKg ?? 0);
   const currencyValue = currency ?? prefs?.currency ?? 'KES';
 
@@ -78,6 +80,10 @@ export default function SettingsScreen() {
 
   function commitEggPrice() {
     patchSettings({ eggPricePerTray: asPrice(eggPriceValue) });
+  }
+
+  function commitEggUnitPrice() {
+    patchSettings({ eggPricePerEgg: asPrice(eggUnitPriceValue) });
   }
 
   function commitMeatPrice() {
@@ -128,7 +134,7 @@ export default function SettingsScreen() {
 
       {prefs ? (
         <View className="gap-2">
-          <SectionTitle>Milk &amp; money</SectionTitle>
+          <SectionTitle>Selling prices</SectionTitle>
           <Surface level="raised" className="gap-3 p-4">
             <View className="flex-row gap-3">
               <View className="flex-1">
@@ -163,6 +169,18 @@ export default function SettingsScreen() {
               </View>
               <View className="flex-1">
                 <TextField
+                  label="Price per egg"
+                  value={eggUnitPriceValue}
+                  onChangeText={setEggUnitPrice}
+                  onBlur={commitEggUnitPrice}
+                  keyboardType="decimal-pad"
+                  hint="For customers buying loose."
+                />
+              </View>
+            </View>
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <TextField
                   label="Price per kg of meat"
                   value={meatPriceValue}
                   onChangeText={setMeatPrice}
@@ -170,10 +188,12 @@ export default function SettingsScreen() {
                   keyboardType="decimal-pad"
                 />
               </View>
+              <View className="flex-1" />
             </View>
             <Text className="text-label text-tertiary">
-              Used when you record a milking or a delivery to a customer. Every record keeps the price it was saved
-              with, so raising a price never rewrites what you already earned or what somebody already owes.
+              What you sell for. Loose eggs have their own price because a single egg normally fetches more than a
+              share of a tray. Every record keeps the price it was saved with, so raising a price never rewrites what
+              you already earned or what somebody already owes.
             </Text>
           </Surface>
         </View>
