@@ -517,6 +517,13 @@ export async function restoreBackup(bundle: BackupBundle): Promise<RestoreSummar
   // to rebuild them from memory. `lastBackupAt` is deliberately excluded: it describes this
   // device's own backup history, and importing someone else's would make the "your records are
   // not backed up" nudge lie.
+  // The `cloud_account` table is absent for the same reason as `licenses` below: it holds this
+  // phone's device token, and a backup file carrying one would hand over the farmer's cloud
+  // account to whoever they gave the file to.
+  //
+  // The `licenses` table is deliberately absent from this whole file. A backup is a file a farmer
+  // can hand to anyone, and an activation travelling inside one would unlock every phone it
+  // reached. Renewal is a code from an agent, not something restored.
   const [incomingSettings] = bundle.data.settings ?? [];
   if (incomingSettings) {
     const { id: _id, lastBackupAt: _lastBackupAt, createdAt: _createdAt, updatedAt: _updatedAt, ...preferences } =

@@ -4,3 +4,5 @@
 
 expo-env.d.ts
 # @end expo-cli
+# Licence signing key — the private half must never be committed.
+tools/.license-key.json

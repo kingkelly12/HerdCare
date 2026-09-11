@@ -1,0 +1,25 @@
+# Copy to `.dev.vars` for local development. That file is git-ignored; this one is not, so it
+# holds variable names only, never values.
+#
+# In production these are Worker secrets, not files:
+#   npx wrangler secret put LICENSE_SIGNING_SEED
+#   npx wrangler secret put ADMIN_TOKEN
+
+# The 32-byte Ed25519 seed, base64url, that signs activation codes. It is the private half of the
+# key whose public half is compiled into the app. Pipe it across without ever displaying it:
+#   cd ../frontend && npm run --silent license -- seed | npx wrangler secret put LICENSE_SIGNING_SEED
+LICENSE_SIGNING_SEED=
+
+# A long random string guarding the endpoints that issue codes. Generate one with:
+#   openssl rand -base64 32
+ADMIN_TOKEN=
+
+# --- Collection (Safaricom Daraja) ----------------------------------------------------
+# MPESA_CONSUMER_KEY=
+# MPESA_CONSUMER_SECRET=
+# MPESA_SHORTCODE=                     # your paybill or till number
+# MPESA_SHORTCODE_TYPE=paybill         # 'paybill' or 'till'
+# MPESA_PASSKEY=
+# MPESA_ENVIRONMENT=sandbox            # sandbox, then production
+# MPESA_CALLBACK_SECRET=               # unguessable segment in the callback path
+# PUBLIC_BASE_URL=                     # https://herdcare-backend.<you>.workers.dev

@@ -618,6 +618,54 @@ export const reminders = sqliteTable(
   ],
 );
 
+/**
+ * This phone's link to the cloud service. Single row, id is always 'default'.
+ *
+ * Holds the device token returned when a farmer proved they hold their M-Pesa number. That token
+ * is what authorises backup and restore, so it is a credential: like `licenses` below, it is
+ * deliberately excluded from backup and restore, because a backup file is something a farmer can
+ * hand to anybody and a device token inside one would hand over their cloud account with it.
+ *
+ * Absent entirely until a farmer signs in. The app works completely without this table; signing in
+ * buys cloud backup and the ability to move to a new phone, nothing else.
+ */
+export const cloudAccount = sqliteTable('cloud_account', {
+  id: text('id').primaryKey().default('default'),
+  /** The M-Pesa number this phone is signed in as, digits only. */
+  phone: text('phone').notNull(),
+  deviceToken: text('device_token').notNull(),
+  signedInAt: text('signed_in_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+  /** When this phone last pushed a copy up, and how big it was. Drives the Settings line. */
+  lastBackupAt: text('last_backup_at'),
+  lastBackupBytes: integer('last_backup_bytes'),
+  lastRestoreAt: text('last_restore_at'),
+});
+
+/**
+ * The activation this device is running under. Single row, id is always 'default'.
+ *
+ * Only the signed token is stored, never a decoded "is the subscription valid" flag: every launch
+ * re-verifies the signature and re-reads the expiry from inside it, so there is no second copy of
+ * the truth to tamper with or to drift out of step.
+ *
+ * Deliberately excluded from backup and restore — see lib/backup.ts. A backup file is something a
+ * farmer can hand to anybody, and a licence that travelled inside one would activate every phone
+ * it touched.
+ */
+export const licenses = sqliteTable('licenses', {
+  id: text('id').primaryKey().default('default'),
+  /** The raw `HC1.<payload>.<signature>` string exactly as it was entered. */
+  token: text('token').notNull(),
+  activatedAt: text('activated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+  /**
+   * The latest local date this install has ever seen, as YYYY-MM-DD.
+   *
+   * Winding the phone's clock back is the obvious way to make a subscription last forever, so the
+   * expiry check uses whichever is later, this or the device's own idea of today.
+   */
+  clockHighWater: text('clock_high_water').notNull(),
+});
+
 /** Single-row table (id is always 'default') holding the farmer's reminder preferences. */
 export const settings = sqliteTable('settings', {
   id: text('id').primaryKey().default('default'),
@@ -756,3 +804,6 @@ export type NewReminder = typeof reminders.$inferInsert;
 export type ReminderSchedule = typeof reminderSchedules.$inferSelect;
 export type NewReminderSchedule = typeof reminderSchedules.$inferInsert;
 export type Settings = typeof settings.$inferSelect;
+export type License = typeof licenses.$inferSelect;
+export type NewLicense = typeof licenses.$inferInsert;
+export type CloudAccount = typeof cloudAccount.$inferSelect;

@@ -33,9 +33,11 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
     "react-native-web": "^0.21.2",
-    "react-native-worklets": "^0.10.1"
+    "react-native-worklets": "^0.10.1",
+    "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
+    "@types/node": "^20.19.43",
     "@types/react": "~19.2.2",
     "babel-plugin-inline-import": "^3.0.0",
     "babel-preset-expo": "^57.0.11",
@@ -49,7 +51,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "db:generate": "drizzle-kit generate",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tools",
+    "license": "esbuild tools/issue-license.ts --bundle --platform=node --format=esm --external:tweetnacl --outfile=node_modules/.cache/herdcare-license.mjs --log-level=warning && node node_modules/.cache/herdcare-license.mjs",
+    "license:test": "esbuild tools/license.test.ts --bundle --platform=node --format=esm --external:tweetnacl --outfile=node_modules/.cache/herdcare-license-test.mjs --log-level=warning && node node_modules/.cache/herdcare-license-test.mjs"
   },
   "private": true
 }

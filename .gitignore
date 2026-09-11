@@ -30,8 +30,28 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
+# env files
+#
+# `.env*.local` alone did NOT cover a plain `.env`, which is the file people actually create.
+# These patterns have no leading slash, so they apply in every directory: frontend/.env and
+# backend/.env are both caught here. `.env.example` stays tracked on purpose, so the *names* of
+# the variables can be shared without their values.
+#
+# Nothing secret belongs in frontend/ at all. Anything reachable from the app's bundle ships
+# inside the APK and can be read straight out of it — a Cloudflare API token lives as a Worker
+# secret (`wrangler secret put`), never in a file the app can see.
+.env
+.env.*
+!.env.example
+*.env
+
+# Cloudflare
+# `.dev.vars` holds real local secrets. `.dev.vars.example` holds only the variable *names* and
+# must stay tracked, so the negation below has to come after the wildcard that would catch it.
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.wrangler/
 
 # typescript
 *.tsbuildinfo
@@ -46,4 +66,3 @@ android/
 
 # backend
 backend/dist/
-backend/.env

@@ -15,6 +15,8 @@ import { updateSettings } from '@/db/reminders';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 import { animals, birthRecords, breedingEvents, healthLogs, settings } from '@/db/schema';
 import { BackupSection } from '@/components/settings/BackupSection';
+import { SubscriptionSection } from '@/components/settings/SubscriptionSection';
+import { CloudBackupSection } from '@/components/settings/CloudBackupSection';
 import { useColors } from '@/theme/colors';
 
 const DIGEST_HOUR_OPTIONS = ['5', '6', '7', '8'].map((hour) => ({ value: hour, label: `${hour}:00` }));
@@ -199,6 +201,11 @@ export default function SettingsScreen() {
         </View>
       ) : null}
 
+      <View className="gap-2">
+        <SectionTitle>Subscription</SectionTitle>
+        <SubscriptionSection />
+      </View>
+
       {prefs ? (
         <View className="gap-2">
           <SectionTitle>Daily reminder</SectionTitle>
@@ -271,6 +278,11 @@ export default function SettingsScreen() {
           </Surface>
         </View>
       ) : null}
+
+      <View className="gap-2">
+        <SectionTitle>Online backup</SectionTitle>
+        <CloudBackupSection />
+      </View>
 
       <BackupSection lastBackupAt={prefs?.lastBackupAt ?? null} hasRecords={(counts?.animals ?? herdSize) > 0} />
 

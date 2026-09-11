@@ -1,0 +1,25 @@
+name = "herdcare-backend"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# Account and database identifiers are not secrets. They name which resources to talk to; the
+# credentials that grant access are the API token Wrangler holds after `wrangler login`, and the
+# Worker secrets listed below. Keeping these here is what Cloudflare's own docs do.
+account_id = "e8636c57e3f59631b554814cb1dd372a"
+
+[[d1_databases]]
+binding = "DB"
+# Confirmed against `npx wrangler d1 list`. The id is what binds; the name is what the
+# `wrangler d1 migrations` and `wrangler d1 execute` commands in package.json address.
+database_name = "herdcare"
+database_id = "1207ca85-0c7e-41ee-b2ae-a563dc6ac747"
+
+# Secrets are NOT set here. Set them once each with:
+#   npx wrangler secret put LICENSE_SIGNING_SEED
+#   npx wrangler secret put ADMIN_TOKEN
+# See README.md. Never add a [vars] block for either of these.
+
+# The nightly renewal job. 03:00 UTC is 06:00 in Nairobi, so a farmer's warning arrives with the
+# morning milking rather than in the middle of the night.
+[triggers]
+crons = ["0 3 * * *"]
