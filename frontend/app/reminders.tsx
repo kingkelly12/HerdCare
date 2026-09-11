@@ -1,5 +1,5 @@
-import { useCallback } from 'react';
-import { Text, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
@@ -16,17 +16,35 @@ import { refreshRemindersAndNotifications, refreshReminderData } from '@/lib/rem
 import { daysFromToday } from '@/utils/livestockRules';
 import { isReminderTypeEnabled } from '@/utils/reminderRules';
 import { SPECIES_RULES } from '@/utils/livestockRules';
+import { useColors } from '@/theme/colors';
 
 export default function RemindersScreen() {
+  const colors = useColors();
+  // Recomputing what's due is a full rebuild of the reminder projection (see
+  // rebuildDerivedReminders), not a single read — it touches the reminders table many times in a
+  // row, and each of those writes pokes the live query below. Without tracking it here, that
+  // window renders as "Nothing due" (nothing pending *yet*) before flickering into the real list,
+  // which is exactly backwards for a screen whose whole job is to flag what needs attention.
+  const [refreshing, setRefreshing] = useState(true);
+
   useFocusEffect(
     useCallback(() => {
-      refreshReminderData().catch(() => {});
+      let cancelled = false;
+      setRefreshing(true);
+      refreshReminderData()
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) setRefreshing(false);
+        });
+      return () => {
+        cancelled = true;
+      };
     }, []),
   );
 
   // The schedule is joined so a routine reminder can say what it actually applies to — a task
   // scoped to goats used to read the same as one for the whole herd.
-  const { data } = useLiveQuery(
+  const { data, updatedAt } = useLiveQuery(
     db
       .select({ reminder: reminders, animal: animals, schedule: reminderSchedules, flock: flocks })
       .from(reminders)
@@ -76,9 +94,20 @@ export default function RemindersScreen() {
     { title: 'Later', tone: 'text-tertiary', rows: later },
   ].filter((section) => section.rows.length > 0);
 
+  // "Nothing due" is a claim, not a default — it may only show once the rebuild above has
+  // actually finished and the list is still empty. While that's in flight, an empty screen would
+  // say the same thing by omission, so a spinner stands in instead. If a previous load already
+  // found something due, that list stays on screen through the refresh rather than being replaced
+  // by a spinner for what is normally a sub-second recheck.
+  const stillResolving = (!updatedAt || refreshing) && sections.length === 0;
+
   return (
     <ScreenContainer fab={<Fab icon="repeat" label="Repeating task" onPress={() => router.push('/schedule/new')} />}>
-      {sections.length === 0 ? (
+      {stillResolving ? (
+        <View className="flex-1 items-center justify-center py-24">
+          <ActivityIndicator size="large" color={colors.brand} />
+        </View>
+      ) : sections.length === 0 ? (
         <EmptyState
           icon="checkmark-done-outline"
           title="Nothing due"

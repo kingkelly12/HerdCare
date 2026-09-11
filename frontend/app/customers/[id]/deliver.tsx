@@ -26,7 +26,7 @@ const EGG_UNIT_OPTIONS = EGG_UNITS.map((value) => ({
 
 export default function RecordDeliveryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: rows } = useLiveQuery(db.select().from(customers).where(eq(customers.id, id)), [id]);
+  const { data: rows, updatedAt } = useLiveQuery(db.select().from(customers).where(eq(customers.id, id)), [id]);
   const customer = rows?.[0];
 
   const [product, setProduct] = useState<DeliveryProduct>('milk');
@@ -105,6 +105,13 @@ export default function RecordDeliveryScreen() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // Still resolving — useLiveQuery starts with an empty array, not undefined, so without
+  // this check the not-found screen flashes for a frame on every navigation here, including
+  // the instant after a new record is saved.
+  if (!updatedAt) {
+    return <ScreenContainer>{null}</ScreenContainer>;
   }
 
   if (!customer) {

@@ -36,7 +36,7 @@ export default function HatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
 
-  const { data: rows } = useLiveQuery(db.select().from(hatchBatches).where(eq(hatchBatches.id, id)), [id]);
+  const { data: rows, updatedAt } = useLiveQuery(db.select().from(hatchBatches).where(eq(hatchBatches.id, id)), [id]);
   const batch = rows?.[0];
 
   const { data: flockRows } = useLiveQuery(
@@ -44,6 +44,13 @@ export default function HatchDetailScreen() {
     [batch?.sourceFlockId],
   );
   const sourceFlock = flockRows?.[0];
+
+  // Still resolving — useLiveQuery starts with an empty array, not undefined, so without
+  // this check the not-found screen flashes for a frame on every navigation here, including
+  // the instant after a new record is saved.
+  if (!updatedAt) {
+    return <ScreenContainer>{null}</ScreenContainer>;
+  }
 
   if (!batch) {
     return (

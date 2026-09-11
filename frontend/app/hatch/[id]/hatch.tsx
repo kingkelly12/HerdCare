@@ -22,7 +22,7 @@ import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 export default function RecordHatchScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
-  const { data: rows } = useLiveQuery(db.select().from(hatchBatches).where(eq(hatchBatches.id, id)), [id]);
+  const { data: rows, updatedAt } = useLiveQuery(db.select().from(hatchBatches).where(eq(hatchBatches.id, id)), [id]);
   const batch = rows?.[0];
 
   const [hatchedDate, setHatchedDate] = useState(getRelativeDateIso(0));
@@ -80,6 +80,13 @@ export default function RecordHatchScreen() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // Still resolving — useLiveQuery starts with an empty array, not undefined, so without
+  // this check the not-found screen flashes for a frame on every navigation here, including
+  // the instant after a new record is saved.
+  if (!updatedAt) {
+    return <ScreenContainer>{null}</ScreenContainer>;
   }
 
   if (!batch) {

@@ -27,7 +27,7 @@ export default function LogFlockEventScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: flockRows } = useLiveQuery(db.select().from(flocks).where(eq(flocks.id, id)), [id]);
+  const { data: flockRows, updatedAt } = useLiveQuery(db.select().from(flocks).where(eq(flocks.id, id)), [id]);
   const flock = flockRows?.[0];
 
   const { data: events } = useLiveQuery(
@@ -68,6 +68,13 @@ export default function LogFlockEventScreen() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // Still resolving — useLiveQuery starts with an empty array, not undefined, so without
+  // this check the not-found screen flashes for a frame on every navigation here, including
+  // the instant after a new record is saved.
+  if (!updatedAt) {
+    return <ScreenContainer>{null}</ScreenContainer>;
   }
 
   if (!flock) {

@@ -32,7 +32,7 @@ const SPECIES_OPTIONS = SPECIES.map((species) => ({
 
 export default function EditAnimalScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: rows } = useLiveQuery(db.select().from(animals).where(eq(animals.id, id)));
+  const { data: rows, updatedAt } = useLiveQuery(db.select().from(animals).where(eq(animals.id, id)));
   const animal = rows?.[0];
 
   const [loaded, setLoaded] = useState(false);
@@ -156,6 +156,13 @@ export default function EditAnimalScreen() {
         },
       ],
     );
+  }
+
+  // Still resolving — useLiveQuery starts with an empty array, not undefined, so without
+  // this check the not-found screen flashes for a frame on every navigation here, including
+  // the instant after a new record is saved.
+  if (!updatedAt) {
+    return <ScreenContainer>{null}</ScreenContainer>;
   }
 
   if (!animal) {

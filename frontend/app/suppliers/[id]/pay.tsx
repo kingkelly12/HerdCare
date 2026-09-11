@@ -19,7 +19,7 @@ import { notifySaved } from '@/lib/haptics';
 
 export default function PaySupplierScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: rows } = useLiveQuery(db.select().from(suppliers).where(eq(suppliers.id, id)), [id]);
+  const { data: rows, updatedAt } = useLiveQuery(db.select().from(suppliers).where(eq(suppliers.id, id)), [id]);
   const supplier = rows?.[0];
 
   const { data: bills } = useLiveQuery(db.select().from(expenses).where(eq(expenses.supplierId, id)), [id]);
@@ -58,6 +58,13 @@ export default function PaySupplierScreen() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // Still resolving — useLiveQuery starts with an empty array, not undefined, so without
+  // this check the not-found screen flashes for a frame on every navigation here, including
+  // the instant after a new record is saved.
+  if (!updatedAt) {
+    return <ScreenContainer>{null}</ScreenContainer>;
   }
 
   if (!supplier) {

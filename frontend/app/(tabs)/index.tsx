@@ -1,5 +1,5 @@
-import { useCallback } from 'react';
-import { Text, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -44,14 +44,29 @@ export default function HomeScreen() {
   const today = startOfTodayIso();
   const dueSoonCutoff = addDaysIso(today, DUE_SOON_DAYS + 1);
 
+  // Recomputing what's due rewrites the reminders table many times in a row (see
+  // rebuildDerivedReminders), and each of those writes pokes the query below. Tracked so "Needs
+  // attention" doesn't flash a false all-clear while that's still running — see the same note on
+  // the dedicated Reminders screen.
+  const [refreshing, setRefreshing] = useState(true);
+
   // The day can roll over while the app sits open in the field, so re-derive on every focus.
   useFocusEffect(
     useCallback(() => {
-      refreshReminderData().catch(() => {});
+      let cancelled = false;
+      setRefreshing(true);
+      refreshReminderData()
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) setRefreshing(false);
+        });
+      return () => {
+        cancelled = true;
+      };
     }, []),
   );
 
-  const { data: dueNow } = useLiveQuery(
+  const { data: dueNow, updatedAt: dueNowUpdatedAt } = useLiveQuery(
     db
       .select({ reminder: reminders, animal: animals })
       .from(reminders)
@@ -161,6 +176,9 @@ export default function HomeScreen() {
 
   // Honours the Settings toggles, same as the Reminders screen and the daily notification.
   const attention = (dueNow ?? []).filter((row) => isReminderTypeEnabled(prefs, row.reminder.type));
+  // See the note by `refreshing` above — only trust an empty list once a rebuild has actually
+  // completed against it, not merely because nothing had loaded yet.
+  const attentionResolving = (!dueNowUpdatedAt || refreshing) && attention.length === 0;
   const daysSinceBackup = prefs?.lastBackupAt ? Math.abs(daysFromToday(prefs.lastBackupAt) ?? 0) : null;
   const backupStale = (herdAnimals?.length ?? 0) > 0 && (daysSinceBackup === null || daysSinceBackup >= 30);
 
@@ -196,7 +214,12 @@ export default function HomeScreen() {
           </PressableSurface>
         </View>
 
-        {attention.length === 0 ? (
+        {attentionResolving ? (
+          <Surface level="raised" className="flex-row items-center gap-3 p-4">
+            <ActivityIndicator color={colors.brand} />
+            <Text className="flex-1 text-callout text-secondary">Checking what needs attention…</Text>
+          </Surface>
+        ) : attention.length === 0 ? (
           <Surface level="raised" className="flex-row items-center gap-3 p-4">
             <View className="h-11 w-11 items-center justify-center rounded-pill bg-brand-soft">
               <Ionicons name="checkmark-done" size={22} color={colors.brand} />

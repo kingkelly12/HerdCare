@@ -22,7 +22,7 @@ const STATUS_OPTIONS = FLOCK_STATUSES.map((status) => ({
 
 export default function EditFlockScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: rows } = useLiveQuery(db.select().from(flocks).where(eq(flocks.id, id)), [id]);
+  const { data: rows, updatedAt } = useLiveQuery(db.select().from(flocks).where(eq(flocks.id, id)), [id]);
   const flock = rows?.[0];
 
   const seededRef = useRef(false);
@@ -108,6 +108,13 @@ export default function EditFlockScreen() {
         },
       ],
     );
+  }
+
+  // Still resolving — useLiveQuery starts with an empty array, not undefined, so without
+  // this check the not-found screen flashes for a frame on every navigation here, including
+  // the instant after a new record is saved.
+  if (!updatedAt) {
+    return <ScreenContainer>{null}</ScreenContainer>;
   }
 
   if (!flock) {

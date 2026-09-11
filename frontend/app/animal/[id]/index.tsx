@@ -91,7 +91,7 @@ export default function AnimalDetailScreen() {
   const [section, setSection] = useState<Section>('overview');
   const colors = useColors();
 
-  const { data: animalRows } = useLiveQuery(db.select().from(animals).where(eq(animals.id, id)));
+  const { data: animalRows, updatedAt } = useLiveQuery(db.select().from(animals).where(eq(animals.id, id)));
   const animal = animalRows?.[0];
 
   const { data: breeding } = useLiveQuery(
@@ -150,6 +150,13 @@ export default function AnimalDetailScreen() {
   const milkedDays = new Set(milkRows.map((row) => row.recordDate)).size;
   const litresPerDay = milkedDays > 0 ? milkLitres / milkedDays : 0;
   const revenuePerDay = milkedDays > 0 ? milkRevenue / milkedDays : 0;
+
+  // Still resolving — useLiveQuery starts with an empty array, not undefined, so without
+  // this check the not-found screen flashes for a frame on every navigation here, including
+  // the instant after a new record is saved.
+  if (!updatedAt) {
+    return <ScreenContainer>{null}</ScreenContainer>;
+  }
 
   if (!animal) {
     return (
