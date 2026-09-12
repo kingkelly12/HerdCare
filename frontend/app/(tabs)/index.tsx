@@ -12,6 +12,8 @@ import { db } from '@/db/client';
 import { refreshReminderData } from '@/lib/reminderSync';
 import { animals, birthRecords, breedingEvents, healthLogs, reminders, settings } from '@/db/schema';
 import { SpeciesAvatar } from '@/components/animals/SpeciesIcon';
+import { useLicense } from '@/components/license/LicenseProvider';
+import { TRIAL_DAYS } from '@/lib/license/status';
 import { useColors } from '@/theme/colors';
 import { REMINDER_TYPE_META, isReminderTypeEnabled } from '@/utils/reminderRules';
 import { addDaysIso, daysFromToday, formatDateForDisplay, startOfTodayIso } from '@/utils/livestockRules';
@@ -39,6 +41,18 @@ function Metric({ value, label, tone = 'brand' }: { value: number; label: string
 
 export default function HomeScreen() {
   const colors = useColors();
+  const { status } = useLicense();
+
+  /**
+   * One line, for the first week only.
+   *
+   * A farmer who never notices they were given a free month feels ambushed when it ends, so it is
+   * said once, early, and then never again until the warnings near the end. Deliberately a line of
+   * text and not a card: this is a fact about their account, not something to act on.
+   */
+  const trialDaysLeft =
+    status?.state === 'trial' && status.daysLeft >= TRIAL_DAYS - 7 ? status.daysLeft : null;
+
   // Bounds are the start of the local day, not the current instant — comparing against "now"
   // made anything due or ending earlier today drop off the dashboard as the day went on.
   const today = startOfTodayIso();
@@ -186,6 +200,11 @@ export default function HomeScreen() {
     <ScreenContainer fab={<Fab icon="add" label="Log" onPress={() => router.push('/log')} />}>
       <Animated.View entering={FadeInDown.duration(300)} className="gap-1 pt-6">
         <Text className="text-display font-sans-bold text-primary">{greeting()}</Text>
+        {trialDaysLeft !== null ? (
+          <Text className="text-callout text-tertiary">
+            Free for another {trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'}
+          </Text>
+        ) : null}
       </Animated.View>
 
       {/* One grouped panel of figures rather than three competing cards. */}

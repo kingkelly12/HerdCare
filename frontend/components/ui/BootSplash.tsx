@@ -15,13 +15,14 @@ import { StatusBar } from 'expo-status-bar';
  */
 
 /**
- * The same green as `backgroundColor` in the expo-splash-screen config in app.json, which is
- * within a shade of the artwork's own top edge (#2B7440).
+ * The artwork's own top edge, and the same value as `backgroundColor` in the expo-splash-screen
+ * config in app.json.
  *
- * Only visible if the image fails to decode, but keeping the two in step means the handoff from
- * the system splash continues the same colour instead of flashing.
+ * Those two matching is what makes the handover invisible. Android draws a flat screen of that
+ * colour before any JavaScript runs, then this image replaces it; identical colour at the top of
+ * the screen means there is nothing to see at the moment of the swap.
  */
-const SPLASH_TOP = '#2C7A3D';
+const SPLASH_TOP = '#2B7440';
 
 export function BootSplash({ onLayout }: { onLayout?: () => void }) {
   return (

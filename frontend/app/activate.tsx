@@ -29,7 +29,7 @@ import { formatMoney } from '@/utils/money';
 import { notifySaved } from '@/lib/haptics';
 
 /** Who to call when a code does not arrive. Shown to the farmer, so keep it a real number. */
-const SUPPORT_PHONE = '+254700000000';
+const SUPPORT_PHONE = '+254705275707';
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -55,6 +55,8 @@ export default function ActivateScreen() {
   const [paying, setPaying] = useState<Plan | null>(null);
   const [payNote, setPayNote] = useState<string | null>(null);
   const [payPhone, setPayPhone] = useState('');
+  // Set when the farmer pasted a short numeric code here, so we can offer the right screen.
+  const [wrongCodeKind, setWrongCodeKind] = useState(false);
 
   useEffect(() => {
     if (linkedToken) setCode(linkedToken);
@@ -68,10 +70,21 @@ export default function ActivateScreen() {
   async function handleActivate() {
     const trimmed = code.trim();
     if (!trimmed) {
-      setError('Enter the code your agent sent you.');
+      setError('Paste your activation code, or open the link your agent sent you.');
       return;
     }
 
+    // Two different things in this app are called "a code", and they look nothing alike: the long
+    // one here unlocks the subscription, and a six-digit one links this phone to online backup.
+    // Typing the wrong one in the wrong box is the obvious mistake, so name it and point the way
+    // rather than answering "that is not a valid code" and leaving the farmer stuck.
+    if (/^\d{4,8}$/.test(trimmed)) {
+      setWrongCodeKind(true);
+      setError('That is a sign-in code for online backup, not an activation code.');
+      return;
+    }
+
+    setWrongCodeKind(false);
     setBusy(true);
     setError(null);
     const result = await activate(trimmed);
@@ -161,6 +174,7 @@ export default function ActivateScreen() {
   // Falls back to the agent flow when the build has no server configured, so this screen still
   // makes sense in a version shipped before the backend went live.
   const canPayInApp = isCloudConfigured();
+  const onTrial = status?.state === 'trial';
   const active = status?.state === 'active' || status?.state === 'grace';
   const payload = status && 'payload' in status ? status.payload : null;
 
@@ -178,23 +192,33 @@ export default function ActivateScreen() {
     >
       <Animated.View entering={FadeInDown.duration(280)} className="items-center gap-2 pt-4">
         <View
-          className={`h-16 w-16 items-center justify-center rounded-pill ${active ? 'bg-brand-soft' : 'bg-warn-soft'}`}
+          className={`h-16 w-16 items-center justify-center rounded-pill ${onTrial || active ? 'bg-brand-soft' : 'bg-warn-soft'}`}
         >
           <Ionicons
-            name={active ? 'shield-checkmark' : 'lock-closed'}
+            name={onTrial ? 'gift' : active ? 'shield-checkmark' : 'lock-closed'}
             size={30}
-            color={active ? colors.brand : colors.warn}
+            color={onTrial || active ? colors.brand : colors.warn}
           />
         </View>
         <Text className="text-title font-sans-bold text-primary">
-          {active ? 'Subscription active' : status?.state === 'expired' ? 'Subscription ended' : 'Activate HerdCare'}
+          {onTrial
+            ? 'Your free month'
+            : active
+              ? 'Subscription active'
+              : status?.state === 'expired' || status?.state === 'trial-ended'
+                ? 'Time to subscribe'
+                : 'Activate HerdCare'}
         </Text>
         <Text className="px-2 text-center text-callout text-secondary">
-          {active
-            ? 'Enter a new code here whenever you renew.'
-            : status?.state === 'expired'
-              ? 'Your records are all still here and you can still read and export them. Renew to start logging again.'
-              : 'Enter the code from your HerdCare agent to start keeping your records.'}
+          {onTrial
+            ? 'Everything is unlocked. Nothing to pay until it ends, and nothing to do now.'
+            : active
+              ? 'Everything is unlocked. Come back here when you want to renew.'
+              : status?.state === 'trial-ended'
+                ? 'Your records are all still here, and you can still read and export them. Subscribe to start logging again.'
+                : status?.state === 'expired'
+                  ? 'Your records are all still here, and you can still read and export them. Renew to start logging again.'
+                  : 'Enter the code from your HerdCare agent to start keeping your records.'}
         </Text>
       </Animated.View>
 
@@ -220,14 +244,16 @@ export default function ActivateScreen() {
       ) : null}
 
       <TextField
-        label="Activation code"
+        label="Subscription activation code"
+        // Long, and never typed by hand in the normal path — a tap on the agent's link fills it.
         value={code}
         onChangeText={(next) => {
           setCode(next);
           setError(null);
+          setWrongCodeKind(false);
         }}
         error={error ?? undefined}
-        hint="Paste the code your agent sent you, or open their message link."
+        hint="Only needed if the link your agent sent you did not open the app."
         autoCapitalize="none"
         autoCorrect={false}
         multiline
@@ -235,6 +261,15 @@ export default function ActivateScreen() {
         className="min-h-[96px] py-3 text-footnote"
         placeholder="HC1...."
       />
+
+      {wrongCodeKind ? (
+        <Button
+          label="Go to online backup"
+          variant="secondary"
+          fullWidth
+          onPress={() => router.replace('/account')}
+        />
+      ) : null}
 
       <Surface level="raised" className="gap-3 p-4">
         <Text className="text-body font-sans-semibold text-primary">What it costs</Text>
@@ -296,10 +331,15 @@ export default function ActivateScreen() {
             </Text>
           </>
         ) : (
-          <Text className="text-callout text-secondary">
-            Send your M-Pesa payment to your HerdCare agent, then send them the confirmation
-            message. They will send you a code back that unlocks the app on this phone.
-          </Text>
+          <View className="gap-2">
+            <Text className="text-callout text-secondary">
+              Paying in the app is not switched on yet, so your HerdCare agent sets you up. Send
+              them your M-Pesa payment and they will unlock this phone for you.
+            </Text>
+            <Text className="text-label text-tertiary">
+              They send one link. Tapping it activates the app, with nothing to type.
+            </Text>
+          </View>
         )}
 
         <Button

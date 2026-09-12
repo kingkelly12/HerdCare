@@ -23,14 +23,24 @@ export function SubscriptionSection() {
   }
 
   const payload = 'payload' in status ? status.payload : null;
+  // Only shout when there is genuinely something to do. A farmer three days into a free month
+  // does not need a warning icon; one three days from the end does.
   const urgent =
     status.state === 'expired' ||
+    status.state === 'trial-ended' ||
     status.state === 'unactivated' ||
     status.state === 'invalid' ||
     status.state === 'grace' ||
-    (status.state === 'active' && status.daysLeft <= RENEWAL_NOTICE_DAYS);
+    (status.state === 'active' && status.daysLeft <= RENEWAL_NOTICE_DAYS) ||
+    (status.state === 'trial' && status.daysLeft <= RENEWAL_NOTICE_DAYS);
 
-  const title = payload ? PLAN_LABELS[payload.plan] : 'Not activated';
+  const title = payload
+    ? PLAN_LABELS[payload.plan]
+    : status.state === 'trial'
+      ? 'Free month'
+      : status.state === 'trial-ended'
+        ? 'Free month ended'
+        : 'Not activated';
   const subtitle = payload
     ? `${describeStatus(status)} · paid to ${formatDateForDisplay(payload.exp)}`
     : describeStatus(status);

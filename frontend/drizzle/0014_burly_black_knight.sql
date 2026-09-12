@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `trial_started_at` text;

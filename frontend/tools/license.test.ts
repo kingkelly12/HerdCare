@@ -11,11 +11,13 @@ import { bytesToBase64Url, base64UrlToBytes, bytesToUtf8, utf8ToBytes } from '..
 import { PLANS, signLicense, verifyLicense, type LicensePayload } from '../lib/license/token';
 import {
   GRACE_DAYS,
+  TRIAL_DAYS,
   addMonthsYmd,
   canWrite,
   daysBetweenYmd,
   effectiveToday,
   readLicenseStatus,
+  readTrialStatus,
 } from '../lib/license/status';
 import { PLAN_PRICES, PURCHASABLE_PLANS, pricePerMonth } from '../lib/license/pricing';
 import { isWriteRoute } from '../lib/license/writeRoutes';
@@ -157,6 +159,39 @@ console.log('\nstatus');
 
   const daysLeft = at('2026-09-21');
   check('counts the days left correctly', daysLeft.state === 'active' && daysLeft.daysLeft === 10);
+}
+
+
+console.log('\nthe free month');
+{
+  const started = '2026-09-01';
+  const at = (today: string) => readTrialStatus(started, today);
+
+  check('day one is a trial', at('2026-09-01').state === 'trial');
+  check('a new farmer can log immediately', canWrite(at('2026-09-01')));
+  check('the whole first day counts', at('2026-09-01').state === 'trial' && (at('2026-09-01') as any).daysLeft === TRIAL_DAYS - 1);
+  check('still running mid-month', canWrite(at('2026-09-20')));
+  check('still running on the last day', at('2026-09-30').state === 'trial');
+  check('the last day is day 30', daysBetweenYmd(started, '2026-09-30') === TRIAL_DAYS - 1);
+  check('over the day after', at('2026-10-01').state === 'trial-ended');
+  check('writing stops when it ends', !canWrite(at('2026-10-01')));
+  check('and stays stopped', !canWrite(at('2026-12-25')));
+
+  // Crossing a month boundary must not shorten or lengthen it.
+  check('a trial started late in a month still gets 30 days', readTrialStatus('2026-01-20', '2026-02-18').state === 'trial');
+  check('and ends on the 31st day', readTrialStatus('2026-01-20', '2026-02-19').state === 'trial-ended');
+
+  // The Today screen mentions the free month once, during the first week, and then leaves the
+  // farmer alone until the warnings near the end.
+  const showsOnHome = (today: string) => {
+    const st = at(today);
+    return st.state === 'trial' && st.daysLeft >= TRIAL_DAYS - 7;
+  };
+  check('the home note shows on day 1', showsOnHome('2026-09-01'));
+  check('the home note shows on day 7', showsOnHome('2026-09-07'));
+  check('the home note is gone by day 8', !showsOnHome('2026-09-08'));
+  check('and stays gone mid-trial', !showsOnHome('2026-09-20'));
+  check('and after it ends', !showsOnHome('2026-10-05'));
 }
 
 console.log('\nclock tampering');

@@ -682,6 +682,19 @@ export const settings = sqliteTable('settings', {
   remindPoultry: integer('remind_poultry', { mode: 'boolean' }).notNull().default(true),
   /** When the farmer last exported a backup — drives the "your records are not backed up" nudge. */
   lastBackupAt: text('last_backup_at'),
+  /**
+   * The day this install's free month began, as a local YYYY-MM-DD.
+   *
+   * Written on first launch without asking anybody for anything. A farmer who has just installed
+   * HerdCare should be logging a calving inside a minute, not reading a price list, so there is no
+   * code to enter and no account to make before the app is fully usable.
+   *
+   * Deliberately not signed, unlike a paid licence. It could be reset by reinstalling, and that is
+   * an acceptable leak: reinstalling also destroys every record on the phone, which is a steeper
+   * price than a month's subscription. It travels in a backup on purpose, so restoring onto a
+   * replacement phone continues the same trial rather than starting a fresh one.
+   */
+  trialStartedAt: text('trial_started_at'),
   /** Default price used to value a new milking; each record keeps its own copy once saved. */
   milkPricePerLitre: real('milk_price_per_litre').notNull().default(0),
   /** Standing prices for what customers take on credit. Copied onto each delivery when saved. */

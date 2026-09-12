@@ -2,7 +2,14 @@ import { eq } from 'drizzle-orm';
 import { db } from './client';
 import { licenses } from './schema';
 import { LICENSE_PUBLIC_KEY } from '@/lib/license/publicKey';
-import { effectiveToday, readLicenseStatus, todayYmd, type LicenseStatus } from '@/lib/license/status';
+import {
+  effectiveToday,
+  readLicenseStatus,
+  readTrialStatus,
+  todayYmd,
+  type LicenseStatus,
+} from '@/lib/license/status';
+import { getSettings, updateSettings } from './reminders';
 import { verifyLicense } from '@/lib/license/token';
 
 const ROW_ID = 'default';
@@ -22,15 +29,39 @@ export async function loadLicenseStatus(): Promise<LicenseStatus> {
   const row = await readRow();
   const deviceToday = todayYmd();
 
-  if (!row) return { state: 'unactivated' };
+  // A paid or owner licence always wins over the trial. Somebody who paid part way through their
+  // free month keeps what they bought rather than being held to the trial's end date.
+  if (row) {
+    const today = effectiveToday(deviceToday, row.clockHighWater);
 
-  const today = effectiveToday(deviceToday, row.clockHighWater);
+    if (today !== row.clockHighWater) {
+      await db.update(licenses).set({ clockHighWater: today }).where(eq(licenses.id, ROW_ID));
+    }
 
-  if (today !== row.clockHighWater) {
-    await db.update(licenses).set({ clockHighWater: today }).where(eq(licenses.id, ROW_ID));
+    const paid = readLicenseStatus(row.token, LICENSE_PUBLIC_KEY, today);
+    // A lapsed subscription does not fall back to a fresh trial; the trial was already spent.
+    if (paid.state !== 'invalid') return paid;
   }
 
-  return readLicenseStatus(row.token, LICENSE_PUBLIC_KEY, today);
+  return startOrReadTrial(deviceToday);
+}
+
+/**
+ * Reads the free month, starting it if this is the first launch.
+ *
+ * Starting it here rather than behind a button is the point: a new farmer should be able to log a
+ * calving without being shown a price, asked for a code, or introduced to an agent. The bill comes
+ * up a month later, once the app has earned the conversation.
+ */
+async function startOrReadTrial(today: string): Promise<LicenseStatus> {
+  const prefs = await getSettings();
+
+  if (!prefs?.trialStartedAt) {
+    await updateSettings({ trialStartedAt: today });
+    return readTrialStatus(today, today);
+  }
+
+  return readTrialStatus(prefs.trialStartedAt, today);
 }
 
 export type ActivationResult = { ok: true; status: LicenseStatus } | { ok: false; reason: string };

@@ -15,6 +15,7 @@ import m0010 from './0010_brainy_revanche.sql';
 import m0011 from './0011_needy_jimmy_woo.sql';
 import m0012 from './0012_quiet_vance_astro.sql';
 import m0013 from './0013_petite_mandarin.sql';
+import m0014 from './0014_burly_black_knight.sql';
 
   export default {
     journal,
@@ -32,7 +33,8 @@ m0009,
 m0010,
 m0011,
 m0012,
-m0013
+m0013,
+m0014
     }
   }
   

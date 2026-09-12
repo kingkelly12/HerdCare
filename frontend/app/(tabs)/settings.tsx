@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
@@ -17,6 +17,8 @@ import { animals, birthRecords, breedingEvents, healthLogs, settings } from '@/d
 import { BackupSection } from '@/components/settings/BackupSection';
 import { SubscriptionSection } from '@/components/settings/SubscriptionSection';
 import { CloudBackupSection } from '@/components/settings/CloudBackupSection';
+import { useFocusEffect } from 'expo-router';
+import { getCloudAccount } from '@/db/cloudAccount';
 import { useColors } from '@/theme/colors';
 
 const DIGEST_HOUR_OPTIONS = ['5', '6', '7', '8'].map((hour) => ({ value: hour, label: `${hour}:00` }));
@@ -54,6 +56,8 @@ function Row({
 export default function SettingsScreen() {
   const colors = useColors();
   const [counts, setCounts] = useState<{ animals: number; breeding: number; health: number; births: number } | null>(null);
+  // The About row used to claim "not connected yet" forever. Read the real state instead.
+  const [cloudLinked, setCloudLinked] = useState<string | null>(null);
 
   const { data: settingsRows } = useLiveQuery(db.select().from(settings).where(eq(settings.id, 'default')));
   const prefs = settingsRows?.[0];
@@ -74,6 +78,14 @@ export default function SettingsScreen() {
   const eggUnitPriceValue = eggUnitPrice ?? String(prefs?.eggPricePerEgg ?? 0);
   const meatPriceValue = meatPrice ?? String(prefs?.meatPricePerKg ?? 0);
   const currencyValue = currency ?? prefs?.currency ?? 'KES';
+
+  useFocusEffect(
+    useCallback(() => {
+      getCloudAccount()
+        .then((row) => setCloudLinked(row?.phone ?? null))
+        .catch(() => {});
+    }, []),
+  );
 
   const asPrice = (value: string) => {
     const parsed = Number.parseFloat(value);
@@ -290,7 +302,16 @@ export default function SettingsScreen() {
         <SectionTitle>About</SectionTitle>
         <Surface level="raised">
           <Row icon="cloud-offline-outline" title="Offline-first" subtitle="All data lives on this device" />
-          <Row icon="sync-outline" title="Cloud sync" subtitle="Not connected yet" divider />
+          <Row
+            icon={cloudLinked ? 'cloud-done-outline' : 'cloud-outline'}
+            title="Online backup"
+            subtitle={
+              cloudLinked
+                ? `This phone is linked to ${cloudLinked}`
+                : 'Link your M-Pesa number to keep a copy off this phone'
+            }
+            divider
+          />
           <Row icon="camera-outline" title="Ear-tag scanning" subtitle="Coming soon" divider />
           <Row icon="mic-outline" title="Voice logging" subtitle="Coming soon" divider />
         </Surface>

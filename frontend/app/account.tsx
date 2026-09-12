@@ -121,7 +121,7 @@ export default function AccountScreen() {
   function confirmSignOut() {
     Alert.alert(
       'Sign out of this phone?',
-      'Your records stay exactly where they are. You will need a code by SMS to back up or restore again.',
+      'Your records stay exactly where they are. You will need a new 6-digit code from your agent before you can back up or restore again.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -170,7 +170,7 @@ export default function AccountScreen() {
         <Text className="px-2 text-center text-callout text-secondary">
           {account
             ? 'Your records can be backed up, and brought back if this phone is ever lost.'
-            : 'Use your M-Pesa number. We send a code by SMS, the same way M-Pesa does.'}
+            : 'Use your M-Pesa number. Your HerdCare agent gives you a 6-digit code to enter here.'}
         </Text>
       </Animated.View>
 
@@ -203,7 +203,7 @@ export default function AccountScreen() {
             keyboardType="phone-pad"
             placeholder="0712345678"
             error={error ?? undefined}
-            hint="The number you use for M-Pesa."
+            hint="The number you use for M-Pesa. This is for online backup, not your subscription."
           />
           <Button
             label={account ? 'Send a new code' : 'Send me a code'}
@@ -212,11 +212,22 @@ export default function AccountScreen() {
             disabled={phone.trim().length < 9}
             onPress={handleRequestCode}
           />
+          <Button
+            label="I already have a code"
+            variant="secondary"
+            fullWidth
+            disabled={phone.trim().length < 9}
+            onPress={() => {
+              setError(null);
+              setNote('Enter the 6-digit code your agent gave you.');
+              setStage('code');
+            }}
+          />
         </>
       ) : (
         <>
           <TextField
-            label="The code we sent you"
+            label="6-digit sign-in code"
             value={code}
             onChangeText={(next) => {
               setCode(next);

@@ -20,12 +20,28 @@ export const GRACE_DAYS = 7;
 /** How close to the end we start saying so out loud. */
 export const RENEWAL_NOTICE_DAYS = 7;
 
+/** How long the free month lasts. Started automatically on first launch. */
+export const TRIAL_DAYS = 30;
+
 export type LicenseStatus =
+  /** No signed licence on file. Only `readLicenseStatus` returns this; a launch falls to the trial. */
   | { state: 'unactivated' }
+  /** The free month, granted on first launch. No code, no account, no agent. */
+  | { state: 'trial'; daysLeft: number }
+  /** The free month has run out and nothing has been paid. */
+  | { state: 'trial-ended' }
   | { state: 'invalid'; reason: string }
   | { state: 'active'; payload: LicensePayload; daysLeft: number }
   | { state: 'grace'; payload: LicensePayload; graceDaysLeft: number }
   | { state: 'expired'; payload: LicensePayload };
+
+/** Where a self-granted trial stands today. */
+export function readTrialStatus(trialStartedAt: string, today: string): LicenseStatus {
+  // `exp` is the last day covered, so a trial started on the 1st runs through the 30th.
+  const daysUsed = daysBetweenYmd(trialStartedAt, today);
+  const daysLeft = TRIAL_DAYS - 1 - daysUsed;
+  return daysLeft >= 0 ? { state: 'trial', daysLeft } : { state: 'trial-ended' };
+}
 
 function ymdToLocalDate(ymd: string): Date {
   const [year, month, day] = ymd.split('-').map(Number);
@@ -106,7 +122,7 @@ export function readLicenseStatus(
  * runs on word of mouth than the subscription is worth.
  */
 export function canWrite(status: LicenseStatus): boolean {
-  return status.state === 'active' || status.state === 'grace';
+  return status.state === 'active' || status.state === 'grace' || status.state === 'trial';
 }
 
 /** A short line for the settings screen and the renewal banner. */
@@ -114,6 +130,12 @@ export function describeStatus(status: LicenseStatus): string {
   switch (status.state) {
     case 'unactivated':
       return 'Not activated yet';
+    case 'trial':
+      if (status.daysLeft === 0) return 'Free month ends today';
+      if (status.daysLeft === 1) return 'Free month ends tomorrow';
+      return `${status.daysLeft} days left of your free month`;
+    case 'trial-ended':
+      return 'Your free month has ended';
     case 'invalid':
       return status.reason;
     case 'active':
