@@ -195,6 +195,24 @@ app.post('/admin/agents', requireAdmin, async (c) => {
   });
 });
 
+/** Lists all agents with active farms and commission stats for the admin desk. */
+app.get('/admin/agents', requireAdmin, async (c) => {
+  const { results: agentsList } = await c.env.DB.prepare(
+    `SELECT a.code, a.name, a.phone, a.commission_rate AS commissionRate,
+            a.activation_bounty AS activationBounty, a.active, a.created_at AS createdAt,
+            COUNT(DISTINCT f.id) AS farms,
+            COALESCE(SUM(CASE WHEN p.settled_at IS NULL THEN p.commission + p.bounty ELSE 0 END), 0) AS owed,
+            COALESCE(SUM(CASE WHEN p.settled_at IS NOT NULL THEN p.commission + p.bounty ELSE 0 END), 0) AS settled
+     FROM agents a
+     LEFT JOIN farms f ON f.agent_code = a.code
+     LEFT JOIN payments p ON p.agent_code = a.code
+     GROUP BY a.code
+     ORDER BY a.created_at DESC`,
+  ).all();
+
+  return c.json({ agents: agentsList ?? [], currency: PRICE_CURRENCY });
+});
+
 /** Marks an agent's outstanding commission as paid out. */
 app.post('/admin/agents/:code/settle', requireAdmin, async (c) => {
   const code = c.req.param('code');

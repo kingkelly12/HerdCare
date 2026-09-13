@@ -21,7 +21,11 @@ export const GRACE_DAYS = 7;
 export const RENEWAL_NOTICE_DAYS = 7;
 
 /** How long the free month lasts. Started automatically on first launch. */
+/** How long the free month lasts. Started automatically on first launch. */
 export const TRIAL_DAYS = 30;
+
+/** Bonus days added to the free trial when referred by a community agent or fellow farmer. */
+export const REFERRAL_BONUS_DAYS = 7;
 
 export type LicenseStatus =
   /** No signed licence on file. Only `readLicenseStatus` returns this; a launch falls to the trial. */
@@ -36,10 +40,11 @@ export type LicenseStatus =
   | { state: 'expired'; payload: LicensePayload };
 
 /** Where a self-granted trial stands today. */
-export function readTrialStatus(trialStartedAt: string, today: string): LicenseStatus {
-  // `exp` is the last day covered, so a trial started on the 1st runs through the 30th.
+export function readTrialStatus(trialStartedAt: string, today: string, hasReferral = false): LicenseStatus {
+  // `exp` is the last day covered, so a trial started on the 1st runs through the 30th (or 37th if referred).
   const daysUsed = daysBetweenYmd(trialStartedAt, today);
-  const daysLeft = TRIAL_DAYS - 1 - daysUsed;
+  const totalTrialDays = hasReferral ? TRIAL_DAYS + REFERRAL_BONUS_DAYS : TRIAL_DAYS;
+  const daysLeft = totalTrialDays - 1 - daysUsed;
   return daysLeft >= 0 ? { state: 'trial', daysLeft } : { state: 'trial-ended' };
 }
 

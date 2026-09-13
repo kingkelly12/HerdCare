@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, FarmRow, PendingPaymentRow } from '../types';
 import { normalisePhone } from '../license';
-import { PLAN_PRICES, PRICE_CURRENCY, isPlan } from '../plans';
+import { PLAN_PRICES, PRICE_CURRENCY, isPlan, todayInNairobi } from '../plans';
 import { callbackMatchesPending, getPaymentProvider } from '../payments';
 import { secretsMatch } from '../crypto';
 import { applyPayment } from '../subscription';
@@ -59,7 +59,36 @@ pay.post('/', async (c) => {
     });
   }
 
-  const farm = await c.env.DB.prepare('SELECT * FROM farms WHERE phone = ?').bind(phone).first<FarmRow>();
+  const rawAgent = (body as any)?.agent;
+  const agentCode = typeof rawAgent === 'string' && rawAgent.trim() ? rawAgent.trim().toUpperCase() : null;
+
+  let farm = await c.env.DB.prepare('SELECT * FROM farms WHERE phone = ?').bind(phone).first<FarmRow>();
+
+  if (!farm) {
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await c.env.DB.prepare(
+      `INSERT INTO farms (id, phone, name, agent_code, plan, expires_at, activated_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(id, phone, '', agentCode, 'trial', todayInNairobi(), now, now)
+      .run();
+    farm = {
+      id,
+      phone,
+      name: '',
+      agent_code: agentCode,
+      plan: 'trial',
+      expires_at: todayInNairobi(),
+      activated_at: now,
+      updated_at: now,
+    };
+  } else if (!farm.agent_code && agentCode) {
+    await c.env.DB.prepare('UPDATE farms SET agent_code = ?, updated_at = ? WHERE id = ?')
+      .bind(agentCode, new Date().toISOString(), farm.id)
+      .run();
+    farm = { ...farm, agent_code: agentCode };
+  }
 
   // The row id is generated before the push so it can travel as our own reference, giving a
   // second way to match the callback besides whatever id the provider issues.

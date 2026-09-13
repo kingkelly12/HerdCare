@@ -55,13 +55,14 @@ export async function loadLicenseStatus(): Promise<LicenseStatus> {
  */
 async function startOrReadTrial(today: string): Promise<LicenseStatus> {
   const prefs = await getSettings();
+  const hasReferral = Boolean(prefs?.agentCode && prefs.agentCode.trim().length > 0);
 
   if (!prefs?.trialStartedAt) {
     await updateSettings({ trialStartedAt: today });
-    return readTrialStatus(today, today);
+    return readTrialStatus(today, today, hasReferral);
   }
 
-  return readTrialStatus(prefs.trialStartedAt, today);
+  return readTrialStatus(prefs.trialStartedAt, today, hasReferral);
 }
 
 export type ActivationResult = { ok: true; status: LicenseStatus } | { ok: false; reason: string };

@@ -7,13 +7,14 @@ import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { and, asc, desc, eq, gte, isNotNull, lt, lte, notInArray } from 'drizzle-orm';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Surface, PressableSurface } from '@/components/ui/Surface';
+import { Button } from '@/components/ui/Button';
 import { Fab } from '@/components/ui/Fab';
 import { db } from '@/db/client';
 import { refreshReminderData } from '@/lib/reminderSync';
 import { animals, birthRecords, breedingEvents, healthLogs, reminders, settings } from '@/db/schema';
 import { SpeciesAvatar } from '@/components/animals/SpeciesIcon';
 import { useLicense } from '@/components/license/LicenseProvider';
-import { TRIAL_DAYS } from '@/lib/license/status';
+import { RENEWAL_NOTICE_DAYS } from '@/lib/license/status';
 import { useColors } from '@/theme/colors';
 import { REMINDER_TYPE_META, isReminderTypeEnabled } from '@/utils/reminderRules';
 import { addDaysIso, daysFromToday, formatDateForDisplay, startOfTodayIso } from '@/utils/livestockRules';
@@ -44,14 +45,14 @@ export default function HomeScreen() {
   const { status } = useLicense();
 
   /**
-   * One line, for the first week only.
+   * Shown only during the final week of the free trial (<= 7 days left).
    *
-   * A farmer who never notices they were given a free month feels ambushed when it ends, so it is
-   * said once, early, and then never again until the warnings near the end. Deliberately a line of
-   * text and not a card: this is a fact about their account, not something to act on.
+   * We do not display this during the first three weeks so new farmers aren't alarmed about paying
+   * before experiencing the value of the app. Once they have their herd & flock set up and are
+   * in the final week, a gentle notice informs them how many days remain.
    */
   const trialDaysLeft =
-    status?.state === 'trial' && status.daysLeft >= TRIAL_DAYS - 7 ? status.daysLeft : null;
+    status?.state === 'trial' && status.daysLeft <= RENEWAL_NOTICE_DAYS ? status.daysLeft : null;
 
   // Bounds are the start of the local day, not the current instant — comparing against "now"
   // made anything due or ending earlier today drop off the dashboard as the day went on.
@@ -202,10 +203,44 @@ export default function HomeScreen() {
         <Text className="text-display font-sans-bold text-primary">{greeting()}</Text>
         {trialDaysLeft !== null ? (
           <Text className="text-callout text-tertiary">
-            Free for another {trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'}
+            {trialDaysLeft === 0
+              ? 'Free month ends today'
+              : `Free for another ${trialDaysLeft} ${trialDaysLeft === 1 ? 'day' : 'days'}`}
           </Text>
         ) : null}
       </Animated.View>
+
+      {/* 7-Day Referral / Community Agent Suggestion */}
+      {trialDaysLeft !== null ? (
+        <Animated.View entering={FadeInDown.duration(300).delay(40)}>
+          <Surface level="raised" className="gap-2.5 p-4 border border-brand-soft">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center gap-2">
+                <View className="h-8 w-8 items-center justify-center rounded-pill bg-brand-soft">
+                  <Ionicons name="gift-outline" size={18} color={colors.brand} />
+                </View>
+                <Text className="text-callout font-sans-bold text-primary">Earn with HerdCare</Text>
+              </View>
+              <PressableSurface
+                level="flat"
+                onPress={() => router.push('/agent/join' as any)}
+                className="px-2.5 py-1 rounded-pill bg-brand-soft"
+              >
+                <Text className="text-caption font-sans-semibold text-brand">Learn How</Text>
+              </PressableSurface>
+            </View>
+            <Text className="text-callout text-secondary">
+              Recruit neighboring farmers and earn 10% of their subscriptions + KSh 750 bounty. Cover your own subscription and earn extra income.
+            </Text>
+            <Button
+              label="Become an Agent"
+              variant="secondary"
+              fullWidth
+              onPress={() => router.push('/agent/join' as any)}
+            />
+          </Surface>
+        </Animated.View>
+      ) : null}
 
       {/* One grouped panel of figures rather than three competing cards. */}
       <Animated.View entering={FadeInDown.duration(300).delay(60)}>

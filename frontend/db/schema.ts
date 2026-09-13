@@ -702,6 +702,8 @@ export const settings = sqliteTable('settings', {
   /** Loose eggs are priced separately — they normally fetch more than a share of a tray. */
   eggPricePerEgg: real('egg_price_per_egg').notNull().default(0),
   meatPricePerKg: real('meat_price_per_kg').notNull().default(0),
+  /** Optional agent referral code entered during onboarding or payment (e.g. "AGT-001"). */
+  agentCode: text('agent_code'),
   currency: text('currency').notNull().default('KES'),
   createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),

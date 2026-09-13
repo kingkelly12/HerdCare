@@ -11,7 +11,6 @@ import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
 import { db } from '@/db/client';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 import { UndoToastHost } from '@/components/ui/UndoToast';
-import { BootSplash } from '@/components/ui/BootSplash';
 import { LicenseProvider } from '@/components/license/LicenseProvider';
 import { WriteRouteGuard } from '@/components/license/WriteRouteGuard';
 import { useColors, useIsDark } from '@/theme/colors';
@@ -60,11 +59,10 @@ export default function RootLayout() {
     );
   }
 
-  // The branded splash covers font loading and the database migration, which is the bulk of a cold
-  // start on a cheap phone. There is no artificial minimum on it: a farmer opening the app to log
-  // a birth should never be made to wait on a logo.
+  // The native splash screen covers font loading and the database migration.
+  // When ready is true, GestureHandlerRootView calls handleFirstLayout to lift the splash.
   if (!ready) {
-    return <BootSplash onLayout={handleFirstLayout} />;
+    return null;
   }
 
   // Navigation chrome (headers, card backgrounds) is themed from the same tokens as the content,
@@ -167,6 +165,21 @@ export default function RootLayout() {
               />
               <Stack.Screen name="activate" options={{ presentation: 'modal', headerShown: true, title: 'Subscription' }} />
               <Stack.Screen name="account" options={{ presentation: 'modal', headerShown: true, title: 'This phone' }} />
+              <Stack.Screen name="agent/index" options={{ headerShown: true, title: 'Agent Portal' }} />
+              <Stack.Screen name="agent/earnings" options={{ headerShown: true, title: 'What you earn' }} />
+              <Stack.Screen
+                name="referral"
+                options={{ presentation: 'modal', headerShown: true, title: 'Referral Bonus' }}
+              />
+              <Stack.Screen
+                name="agent/join"
+                options={{ presentation: 'modal', headerShown: true, title: 'Become an Agent' }}
+              />
+              <Stack.Screen name="admin/index" options={{ headerShown: true, title: 'Admin Desk' }} />
+              <Stack.Screen
+                name="admin/new-agent"
+                options={{ presentation: 'modal', headerShown: true, title: 'Register Agent' }}
+              />
             </Stack>
             {/* Outside the navigator, so one list of write routes also covers deep links. */}
             <WriteRouteGuard />

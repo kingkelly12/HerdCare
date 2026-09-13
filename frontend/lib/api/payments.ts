@@ -17,8 +17,15 @@ export interface StartPaymentResponse {
   currency: string;
 }
 
-export function startPayment(phone: string, plan: Plan): Promise<ApiResult<StartPaymentResponse>> {
-  return apiRequest<StartPaymentResponse>('/pay', { method: 'POST', body: { phone, plan } });
+export function startPayment(
+  phone: string,
+  plan: Plan,
+  agent?: string | null,
+): Promise<ApiResult<StartPaymentResponse>> {
+  return apiRequest<StartPaymentResponse>('/pay', {
+    method: 'POST',
+    body: { phone, plan, ...(agent ? { agent } : {}) },
+  });
 }
 
 export interface PaymentStatusResponse {

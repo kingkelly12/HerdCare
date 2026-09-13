@@ -10,6 +10,7 @@ import { TextField } from '@/components/ui/TextField';
 import { Callout } from '@/components/ui/Callout';
 import { useLicense } from '@/components/license/LicenseProvider';
 import { clearLicense } from '@/db/license';
+import { getSettings, updateSettings } from '@/db/reminders';
 import { isCloudConfigured } from '@/lib/api/client';
 import { startPayment, waitForPayment } from '@/lib/api/payments';
 import type { Plan } from '@/lib/license/token';
@@ -55,12 +56,21 @@ export default function ActivateScreen() {
   const [paying, setPaying] = useState<Plan | null>(null);
   const [payNote, setPayNote] = useState<string | null>(null);
   const [payPhone, setPayPhone] = useState('');
+  const [agentCode, setAgentCode] = useState('');
   // Set when the farmer pasted a short numeric code here, so we can offer the right screen.
   const [wrongCodeKind, setWrongCodeKind] = useState(false);
 
   useEffect(() => {
     if (linkedToken) setCode(linkedToken);
   }, [linkedToken]);
+
+  useEffect(() => {
+    getSettings()
+      .then((s) => {
+        if (s?.agentCode) setAgentCode(s.agentCode);
+      })
+      .catch(() => {});
+  }, []);
 
   // A renewing farmer's number is already on their licence, so they should not retype it.
   useEffect(() => {
@@ -117,7 +127,7 @@ export default function ActivateScreen() {
     setError(null);
     setPayNote('Starting the payment…');
 
-    const started = await startPayment(phone, plan);
+    const started = await startPayment(phone, plan, agentCode.trim().toUpperCase() || null);
     if (!started.ok) {
       setPaying(null);
       setPayNote(null);
@@ -243,6 +253,30 @@ export default function ActivateScreen() {
         </Animated.View>
       ) : null}
 
+      {active ? (
+        <Animated.View entering={FadeInDown.duration(280).delay(80)}>
+          <Surface level="raised" className="gap-2.5 p-4 border border-brand-soft">
+            <View className="flex-row items-center gap-2">
+              <View className="h-8 w-8 items-center justify-center rounded-pill bg-brand-soft">
+                <Ionicons name="gift-outline" size={18} color={colors.brand} />
+              </View>
+              <Text className="flex-1 text-callout font-sans-bold text-primary">
+                Share HerdCare with another farmer & earn 10%
+              </Text>
+            </View>
+            <Text className="text-callout text-secondary">
+              Help fellow farmers get organized and receive continuous cash commissions + KSh 750 bounty directly to your M-Pesa.
+            </Text>
+            <Button
+              label="Join Referral Program"
+              variant="secondary"
+              fullWidth
+              onPress={() => router.push('/agent/join' as any)}
+            />
+          </Surface>
+        </Animated.View>
+      ) : null}
+
       <TextField
         label="Subscription activation code"
         // Long, and never typed by hand in the normal path — a tap on the agent's link fills it.
@@ -323,6 +357,20 @@ export default function ActivateScreen() {
               }}
               keyboardType="phone-pad"
               placeholder="0712345678"
+              editable={paying === null}
+            />
+            <TextField
+              label="Agent referral code (optional)"
+              value={agentCode}
+              onChangeText={(next) => {
+                const upper = next.toUpperCase();
+                setAgentCode(upper);
+                updateSettings({ agentCode: upper.trim() }).catch(() => {});
+              }}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              placeholder="e.g. AGT-001"
+              hint="If a HerdCare agent introduced you, enter their code so they receive credit."
               editable={paying === null}
             />
             {payNote ? <Callout tone="brand">{payNote}</Callout> : null}

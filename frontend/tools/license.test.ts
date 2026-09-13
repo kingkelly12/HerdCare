@@ -11,6 +11,8 @@ import { bytesToBase64Url, base64UrlToBytes, bytesToUtf8, utf8ToBytes } from '..
 import { PLANS, signLicense, verifyLicense, type LicensePayload } from '../lib/license/token';
 import {
   GRACE_DAYS,
+  REFERRAL_BONUS_DAYS,
+  RENEWAL_NOTICE_DAYS,
   TRIAL_DAYS,
   addMonthsYmd,
   canWrite,
@@ -21,6 +23,15 @@ import {
 } from '../lib/license/status';
 import { PLAN_PRICES, PURCHASABLE_PLANS, pricePerMonth } from '../lib/license/pricing';
 import { isWriteRoute } from '../lib/license/writeRoutes';
+import {
+  bookValue,
+  commissionPerPayment,
+  earnedAtSigning,
+  earnedEveryYearAfter,
+  earnedFirstYear,
+  farmRevenuePerYear,
+  paymentsPerYear,
+} from '../lib/agent/earnings';
 
 let failures = 0;
 
@@ -181,17 +192,24 @@ console.log('\nthe free month');
   check('a trial started late in a month still gets 30 days', readTrialStatus('2026-01-20', '2026-02-18').state === 'trial');
   check('and ends on the 31st day', readTrialStatus('2026-01-20', '2026-02-19').state === 'trial-ended');
 
-  // The Today screen mentions the free month once, during the first week, and then leaves the
-  // farmer alone until the warnings near the end.
+  // Referral bonus (+7 extra free trial days = 37 total days)
+  check('referral adds 7 extra days to trial', (readTrialStatus(started, '2026-09-01', true) as any).daysLeft === TRIAL_DAYS + REFERRAL_BONUS_DAYS - 1);
+  check('day 30 is still trial when referred', readTrialStatus(started, '2026-09-30', true).state === 'trial');
+  check('day 37 is the last day when referred', readTrialStatus(started, '2026-10-07', true).state === 'trial');
+  check('day 38 ends trial when referred', readTrialStatus(started, '2026-10-08', true).state === 'trial-ended');
+
+  // The Today screen stays silent for the first three weeks so farmers can explore and build
+  // their records freely. It only nudges them during the final week (<= 7 days left).
   const showsOnHome = (today: string) => {
     const st = at(today);
-    return st.state === 'trial' && st.daysLeft >= TRIAL_DAYS - 7;
+    return st.state === 'trial' && st.daysLeft <= RENEWAL_NOTICE_DAYS;
   };
-  check('the home note shows on day 1', showsOnHome('2026-09-01'));
-  check('the home note shows on day 7', showsOnHome('2026-09-07'));
-  check('the home note is gone by day 8', !showsOnHome('2026-09-08'));
-  check('and stays gone mid-trial', !showsOnHome('2026-09-20'));
-  check('and after it ends', !showsOnHome('2026-10-05'));
+  check('the home note is silent on day 1', !showsOnHome('2026-09-01'));
+  check('the home note is silent on day 7', !showsOnHome('2026-09-07'));
+  check('and stays silent mid-trial (day 20)', !showsOnHome('2026-09-20'));
+  check('the home note appears one week out (day 23, 7 days left)', showsOnHome('2026-09-23'));
+  check('the home note stays through the last day (day 30)', showsOnHome('2026-09-30'));
+  check('and is gone after it ends', !showsOnHome('2026-10-01'));
 }
 
 console.log('\nclock tampering');
@@ -204,6 +222,51 @@ console.log('\nclock tampering');
   // The farmer sets the phone back to last year to dodge an expiry. The high-water mark wins.
   const rolledBack = readLicenseStatus(token, keys.publicKey, effectiveToday('2025-01-01', '2026-10-20'));
   check('a rolled-back clock does not revive an expired licence', !canWrite(rolledBack));
+}
+
+
+console.log('\nagent earnings shown in the app');
+{
+  // These must equal what backend/src/commission.ts actually pays out. The backend suite asserts
+  // the same figures from the other side; if the two ever disagree, an agent is being quoted a
+  // number their M-Pesa will not match.
+  check('monthly commission is 100 a payment', commissionPerPayment('monthly') === 100);
+  check('quarterly commission is 280 a payment', commissionPerPayment('quarterly') === 280);
+  check('annual commission is 1,000 a payment', commissionPerPayment('annual') === 1000);
+
+  check('payments a year: monthly 12', paymentsPerYear('monthly') === 12);
+  check('payments a year: quarterly 4', paymentsPerYear('quarterly') === 4);
+  check('payments a year: annual 1', paymentsPerYear('annual') === 1);
+
+  // The headline number, and the one an agent can check against their phone the same week.
+  check('signing a quarterly farm pays 1,030', earnedAtSigning('quarterly') === 1030);
+  check('signing an annual farm pays 1,750', earnedAtSigning('annual') === 1750);
+  check('signing a monthly farm pays 100, bounty held', earnedAtSigning('monthly') === 100);
+
+  check('first year, monthly, is 1,950', earnedFirstYear('monthly') === 1950);
+  check('first year, quarterly, is 1,870', earnedFirstYear('quarterly') === 1870);
+  check('first year, annual, is 1,750', earnedFirstYear('annual') === 1750);
+
+  check('every year after, monthly, is 1,200', earnedEveryYearAfter('monthly') === 1200);
+  check('every year after, quarterly, is 1,120', earnedEveryYearAfter('quarterly') === 1120);
+  check('every year after, annual, is 1,000', earnedEveryYearAfter('annual') === 1000);
+
+  check('a quarterly farm pays 11,200 a year', farmRevenuePerYear('quarterly') === 11200);
+
+  const book = bookValue([10, 50, 100]);
+  check('10 farms yield 11,200 a year', book[0].yoursPerYear === 11200);
+  check('50 farms yield 56,000 a year', book[1].yoursPerYear === 56000);
+  check('100 farms yield 112,000 a year', book[2].yoursPerYear === 112000);
+  check(
+    'the share really is a tenth of what those farms pay',
+    book.every((r) => Math.round((r.yoursPerYear / r.revenuePerYear) * 100) === 10),
+  );
+
+  // A custom rate must flow through everywhere rather than only some places.
+  const better = { commissionRate: 0.15, activationBounty: 1000 };
+  check('a 15% rate changes the per-payment figure', commissionPerPayment('quarterly', better) === 420);
+  check('and the signing figure', earnedAtSigning('quarterly', better) === 1420);
+  check('and the recurring figure', earnedEveryYearAfter('quarterly', better) === 1680);
 }
 
 console.log('\nwrite routes');
