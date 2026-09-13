@@ -11,7 +11,7 @@ import { Callout } from '@/components/ui/Callout';
 import { useLicense } from '@/components/license/LicenseProvider';
 import { clearLicense } from '@/db/license';
 import { getSettings, updateSettings } from '@/db/reminders';
-import { isCloudConfigured } from '@/lib/api/client';
+import { useCapabilities } from '@/lib/api/capabilities';
 import { startPayment, waitForPayment } from '@/lib/api/payments';
 import type { Plan } from '@/lib/license/token';
 import { PLAN_LABELS } from '@/lib/license/token';
@@ -183,7 +183,10 @@ export default function ActivateScreen() {
 
   // Falls back to the agent flow when the build has no server configured, so this screen still
   // makes sense in a version shipped before the backend went live.
-  const canPayInApp = isCloudConfigured();
+  // Ask the server, not the build. Payments switch on for every phone the moment M-Pesa
+  // credentials are added on the server, with no rebuild, and until then no Pay button appears
+  // that would only fail when tapped.
+  const { payments: canPayInApp } = useCapabilities();
   const onTrial = status?.state === 'trial';
   const active = status?.state === 'active' || status?.state === 'grace';
   const payload = status && 'payload' in status ? status.payload : null;

@@ -77,7 +77,9 @@ export default function JoinAgentScreen() {
     });
 
     Alert.alert(
-      res.data.isExisting ? 'Welcome Back!' : 'Agent Code Created!',
+      // Registration no longer signs an existing agent back in (that was an account-takeover
+      // hole), so reaching here always means a brand-new agent code.
+      'Agent Code Created!',
       `Your personal Agent Code is ${res.data.agent.code}.\n\nShare this code with fellow farmers when they subscribe. Let’s head to your Agent Portal.`,
       [
         {

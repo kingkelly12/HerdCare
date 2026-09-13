@@ -35,12 +35,19 @@
           "useSQLCipher": false
         }
       ],
+      "./plugins/withFullscreenSplash",
       [
         "expo-splash-screen",
         {
           "backgroundColor": "#2B7440",
-          "image": "./assets/splash.jpg",
-          "resizeMode": "contain"
+          "image": "./assets/splash-blank.png",
+          "imageWidth": 1,
+          "ios": {
+            "backgroundColor": "#2B7440",
+            "image": "./assets/splash.png",
+            "resizeMode": "cover",
+            "enableFullScreenImage_legacy": true
+          }
         }
       ]
     ],

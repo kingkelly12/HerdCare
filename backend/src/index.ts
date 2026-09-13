@@ -5,13 +5,17 @@ import { PLAN_PRICES, PRICE_CURRENCY, isPlan, todayInNairobi } from './plans';
 import { applyPayment, describeFarm, issueToken } from './subscription';
 import { randomOtp, randomToken, secretsMatch, sha256Hex } from './crypto';
 import { sendRenewalNotices } from './reminders';
+import { mayRecoverFarm } from './authz';
 import { getPaymentProvider } from './payments';
 import { auth } from './routes/auth';
 import { backup } from './routes/backup';
 import { pay } from './routes/pay';
 import { agents } from './routes/agents';
 
-const app = new Hono<{ Bindings: Env }>();
+/** Set by `requireAdminOrAgent`, so a handler knows whether it may act beyond one agent's farms. */
+type CallerVariables = { isAdmin: boolean; agentCode: string | null };
+
+const app = new Hono<{ Bindings: Env; Variables: CallerVariables }>();
 
 /** Guards every endpoint that can issue a code or move money. */
 async function requireAdmin(c: any, next: any) {
@@ -31,7 +35,11 @@ async function requireAdminOrAgent(c: any, next: any) {
   const presented = header.startsWith('Bearer ') ? header.slice(7) : '';
   if (!presented) return c.json({ error: 'Not authorised.' }, 401);
 
-  if (c.env.ADMIN_TOKEN && secretsMatch(presented, c.env.ADMIN_TOKEN)) return next();
+  if (c.env.ADMIN_TOKEN && secretsMatch(presented, c.env.ADMIN_TOKEN)) {
+    c.set('isAdmin', true);
+    c.set('agentCode', null);
+    return next();
+  }
 
   // `c` is loosely typed here because Hono's middleware signature is, so name the binding to get
   // D1's own types back rather than reaching through `any`.
@@ -42,6 +50,8 @@ async function requireAdminOrAgent(c: any, next: any) {
     .first<{ code: string }>();
 
   if (!agent) return c.json({ error: 'Not authorised.' }, 401);
+  c.set('isAdmin', false);
+  c.set('agentCode', agent.code);
   return next();
 }
 
@@ -288,7 +298,22 @@ app.post('/admin/recover', requireAdminOrAgent, async (c) => {
 
   const phone = normalisePhone(rawPhone);
   const farm = await c.env.DB.prepare('SELECT * FROM farms WHERE phone = ?').bind(phone).first<FarmRow>();
-  if (!farm) return c.json({ error: 'No subscription found for this number.' }, 404);
+
+  // An agent may only recover their own farmers. A recovery code is a key to that farm's whole
+  // backup — herd, customers, money — so without this any agent, and anybody who registers as one,
+  // could pull any farmer's records by knowing their phone number. The same 404 is returned whether
+  // the farm does not exist or belongs to somebody else, so this cannot be used to discover which
+  // numbers are customers.
+  if (
+    !farm ||
+    !mayRecoverFarm({
+      isAdmin: c.get('isAdmin'),
+      callerAgentCode: c.get('agentCode'),
+      farmAgentCode: farm.agent_code,
+    })
+  ) {
+    return c.json({ error: 'No subscription found for this number among your farmers.' }, 404);
+  }
 
   const code = randomOtp();
   // Shorter than an SMS code's life: it is being read out during a conversation, not waiting in

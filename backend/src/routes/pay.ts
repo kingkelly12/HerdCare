@@ -215,6 +215,14 @@ pay.post('/callback/:secret', async (c) => {
     return ok;
   }
 
+  // A settled payment is final. Safaricom retries callbacks whenever a response is slow, so a
+  // second callback for a payment that already went through is routine, not suspicious. It must
+  // change nothing: an earlier version recorded the refusal by overwriting `paid` with `rejected`,
+  // which told a farmer who had paid that their payment failed, and invited them to pay again.
+  if (pending.status !== 'pending') {
+    return ok;
+  }
+
   const verdict = callbackMatchesPending(callback, pending);
 
   if (!verdict.ok) {

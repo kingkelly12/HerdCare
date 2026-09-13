@@ -19,6 +19,7 @@ import { callbackMatchesPending, darajaTimestamp, stkPassword } from '../src/pay
 import { createDaraja } from '../src/payments/daraja';
 import { renewalStart } from '../src/subscription';
 import { randomOtp, randomToken, secretsMatch, sha256Hex } from '../src/crypto';
+import { mayRecoverFarm } from '../src/authz';
 
 let failures = 0;
 function check(name: string, condition: boolean) {
@@ -244,6 +245,20 @@ async function main() {
       'password is base64 of shortcode+passkey+timestamp',
       stkPassword('174379', 'abc', '20260911120000') === btoa('174379abc20260911120000'),
     );
+  }
+
+
+  console.log('\nwho may recover a farm');
+  {
+    const rule = mayRecoverFarm;
+    check('an admin may recover any farm', rule({ isAdmin: true, callerAgentCode: null, farmAgentCode: 'KAMA-101' }));
+    check('an admin may recover an unsigned farm', rule({ isAdmin: true, callerAgentCode: null, farmAgentCode: null }));
+    check('an agent may recover their own farm', rule({ isAdmin: false, callerAgentCode: 'KAMA-101', farmAgentCode: 'KAMA-101' }));
+
+    // The hole this closes: any agent, including anybody who just registered as one.
+    check("an agent may NOT recover another agent's farm", !rule({ isAdmin: false, callerAgentCode: 'NEWB-999', farmAgentCode: 'KAMA-101' }));
+    check('an agent may NOT recover a farm nobody signed', !rule({ isAdmin: false, callerAgentCode: 'NEWB-999', farmAgentCode: null }));
+    check('a caller with no identity may recover nothing', !rule({ isAdmin: false, callerAgentCode: null, farmAgentCode: 'KAMA-101' }));
   }
 
   console.log('\nsecrets');

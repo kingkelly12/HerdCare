@@ -16,7 +16,10 @@ import { WriteRouteGuard } from '@/components/license/WriteRouteGuard';
 import { useColors, useIsDark } from '@/theme/colors';
 import migrations from '@/drizzle/migrations';
 
-SplashScreen.preventAutoHideAsync().catch(() => {});
+// Deliberately NOT holding the native splash with preventAutoHideAsync. The artwork is the Android
+// window background (see plugins/withFullscreenSplash.js), so the sooner Android 12+'s own launch
+// frame lifts, the sooner the artwork shows. Holding it would keep a plain colour on screen for the
+// whole of the database migration, with the artwork hidden underneath.
 
 export default function RootLayout() {
   const { success, error } = useMigrations(db, migrations);
@@ -32,14 +35,7 @@ export default function RootLayout() {
 
   const ready = success && fontsLoaded;
 
-  /**
-   * Hides the system splash once whatever we render first has actually laid out.
-   *
-   * Hiding it as soon as JS starts leaves a blank frame between the platform's launch screen and
-   * ours. Waiting for a real layout pass means the system splash lifts onto an already-painted
-   * screen, so a cold start reads as one continuous green rather than a flicker. Safe to fire more
-   * than once; the later calls are no-ops.
-   */
+  /** A no-op safety net: the splash already auto-hides, since nothing prevents it. */
   const handleFirstLayout = useCallback(() => {
     SplashScreen.hideAsync().catch(() => {});
   }, []);
@@ -59,8 +55,8 @@ export default function RootLayout() {
     );
   }
 
-  // The native splash screen covers font loading and the database migration.
-  // When ready is true, GestureHandlerRootView calls handleFirstLayout to lift the splash.
+  // Render nothing while fonts load and the database migrates. With nothing drawn, the full-screen
+  // artwork — Android's window background — stays visible, so this wait looks like the splash.
   if (!ready) {
     return null;
   }
@@ -80,7 +76,9 @@ export default function RootLayout() {
   };
 
   return (
-    <GestureHandlerRootView className="flex-1" onLayout={handleFirstLayout}>
+    // Opaque from here on. The artwork is the window's permanent background, so without this it would
+    // show through anything transparent — a screen transition, an overscroll, a keyboard animation.
+    <GestureHandlerRootView className="flex-1" style={{ backgroundColor: colors.canvas }} onLayout={handleFirstLayout}>
       <SafeAreaProvider>
         <ThemeProvider value={navTheme}>
           <StatusBar style={isDark ? 'light' : 'dark'} />

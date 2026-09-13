@@ -178,24 +178,18 @@ agents.post('/register', async (c) => {
   const apiKeyHash = await sha256Hex(apiKey);
 
   if (existing) {
-    // Refresh their API key hash so their app session logs straight into their account
-    await c.env.DB.prepare(
-      'UPDATE agents SET name = ?, api_key_hash = ?, active = 1 WHERE code = ?',
-    )
-      .bind(name, apiKeyHash, existing.code)
-      .run();
-
-    return c.json({
-      agent: {
-        code: existing.code,
-        name,
-        phone,
-        commissionRate: existing.commission_rate,
-        activationBounty: existing.activation_bounty,
+    // Never issue a key for a number that is already registered. This endpoint is public and a
+    // phone number is not a secret, so handing a fresh key to whoever asks would let anyone take
+    // over an agent's account just by knowing their number — and with it the agent's farms, their
+    // earnings, and the ability to issue recovery codes. An agent who has lost their key gets a
+    // new one from the admin, who can see who they are.
+    return c.json(
+      {
+        error: 'This number is already registered as an agent. Ask the HerdCare admin to reissue your agent key.',
+        isExisting: true,
       },
-      apiKey,
-      isExisting: true,
-    });
+      409,
+    );
   }
 
   // Generate a clean, human-friendly code: up to 4 uppercase characters from name + 3 digits
