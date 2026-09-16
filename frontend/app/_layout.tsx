@@ -16,26 +16,34 @@ import { WriteRouteGuard } from '@/components/license/WriteRouteGuard';
 import { useColors, useIsDark } from '@/theme/colors';
 import migrations from '@/drizzle/migrations';
 
-// Deliberately NOT holding the native splash with preventAutoHideAsync. The artwork is the Android
-// window background (see plugins/withFullscreenSplash.js), so the sooner Android 12+'s own launch
-// frame lifts, the sooner the artwork shows. Holding it would keep a plain colour on screen for the
-// whole of the database migration, with the artwork hidden underneath.
+// Keep splash screen visible while fonts and database migrations initialize
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Last-resort guarantee. The splash blocks Android from drawing the app at all until it is told to
+// hide, so if anything below ever fails to release it, the phone would sit on the splash forever.
+// This lets go regardless after a few seconds; a slow start then shows the app or an error screen.
+setTimeout(() => SplashScreen.hide(), 5000);
 
 export default function RootLayout() {
   const { success, error } = useMigrations(db, migrations);
   const colors = useColors();
   const isDark = useIsDark();
 
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
   });
 
-  const ready = success && fontsLoaded;
+  const ready = success && (fontsLoaded || !!fontError);
 
-  /** A no-op safety net: the splash already auto-hides, since nothing prevents it. */
+  useEffect(() => {
+    if (ready || error) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [ready, error]);
+
   const handleFirstLayout = useCallback(() => {
     SplashScreen.hideAsync().catch(() => {});
   }, []);

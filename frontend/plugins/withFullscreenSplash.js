@@ -12,8 +12,8 @@ const { AndroidConfig, withAndroidStyles, withDangerousMod } = require('expo/con
  *
  * What a farmer sees:
  *   Android 11 and older   The artwork, and nothing else, from the first frame.
- *   Android 12 and newer   The operating system paints one frame of solid colour first (it does this
- *                          for every app and no app can remove it), then the artwork, then HerdCare.
+ *   Android 12 and newer   The operating system's own launch screen in HerdCare green (no app can
+ *                          replace it with a full-screen image), then HerdCare.
  *
  * Why it is three layers and not one image: phones are taller than the 9:16 artwork, and Android
  * cannot crop a bitmap to cover the screen, only stretch it, which would squash the logo. So the
@@ -91,21 +91,15 @@ function withSplashWindowBackground(config) {
   return withAndroidStyles(config, (modConfig) => {
     const value = `@drawable/${DRAWABLE_NAME}`;
 
-    // The launch theme: this is what Android 11 and older paint at cold start.
+    // The launch theme only: this is what Android paints at cold start, before any app code runs.
+    // The app's own theme (AppTheme) is deliberately left exactly as it was when the app opened
+    // reliably. Putting the artwork there as well is what coincided with Android 11 phones sticking
+    // on the artwork, so it stays out.
     modConfig.modResults = AndroidConfig.Styles.assignStylesValue(modConfig.modResults, {
       add: true,
       name: 'android:windowBackground',
       value,
       parent: { name: 'Theme.App.SplashScreen' },
-    });
-
-    // The app theme: what shows once Android 12+'s own launch frame lifts, until HerdCare draws.
-    // Matched by name only, since its parent changes with edge-to-edge settings.
-    modConfig.modResults = AndroidConfig.Styles.assignStylesValue(modConfig.modResults, {
-      add: true,
-      name: 'android:windowBackground',
-      value,
-      parent: AndroidConfig.Styles.getAppThemeGroup(),
     });
 
     return modConfig;

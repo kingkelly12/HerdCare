@@ -41,7 +41,7 @@
         {
           "backgroundColor": "#2B7440",
           "image": "./assets/splash-blank.png",
-          "imageWidth": 1,
+          "imageWidth": 200,
           "ios": {
             "backgroundColor": "#2B7440",
             "image": "./assets/splash.png",
