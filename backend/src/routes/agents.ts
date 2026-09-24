@@ -2,8 +2,10 @@ import { Hono } from 'hono';
 import type { AgentRow, Env } from '../types';
 import { secretsMatch, sha256Hex, randomToken } from '../crypto';
 import { normalisePhone } from '../license';
-import { PRICE_CURRENCY } from '../plans';
+import { PRICE_CURRENCY, todayInNairobi } from '../plans';
+import { buildPipeline, type FarmInput, type PaymentInput, type ReferralInput } from '../pipeline';
 import { describeFarm } from '../subscription';
+import { DEFAULT_ACTIVATION_BOUNTY, DEFAULT_COMMISSION_RATE } from '../commission';
 import type { FarmRow } from '../types';
 
 /**
@@ -115,6 +117,52 @@ agents.get('/me/farms', async (c) => {
   return c.json({ farms: (results ?? []).map((farm) => describeFarm(farm)) });
 });
 
+/**
+ * Every farmer an agent has, at whatever stage: introduced and on the free trial, paying, or gone
+ * quiet. Plus a short feed of what changed, for the "new since you last looked" list.
+ *
+ * Only this agent's own rows go in. A referral can name any phone number (see routes/referrals.ts),
+ * so a farm's plan and payments are joined in only where the farm itself belongs to this agent,
+ * which it does once that farmer has paid with this agent's code. Anything else would let an agent
+ * look up whether any number in Kenya is a paying customer.
+ */
+agents.get('/me/pipeline', async (c) => {
+  const queryCode = c.req.query('code')?.trim();
+  const auth = await resolveAuth(c.env, c.req.header('authorization'), queryCode);
+  if (!auth) return c.json({ error: 'Not authorised.' }, 401);
+
+  const everyone = auth.isAdmin && (!auth.targetCode || auth.targetCode === 'ALL');
+  const agentCode = auth.agent?.code ?? auth.targetCode ?? '';
+  const scope = everyone ? '' : 'WHERE agent_code = ?';
+  const bind = <T extends D1PreparedStatement>(statement: T) => (everyone ? statement : statement.bind(agentCode));
+
+  const [referralRows, farmRows, paymentRows] = await Promise.all([
+    bind(
+      c.env.DB.prepare(`SELECT phone, name, trial_ends_at, created_at FROM referrals ${scope} ORDER BY created_at DESC LIMIT 1000`),
+    ).all<ReferralInput>(),
+    bind(
+      c.env.DB.prepare(`SELECT phone, name, plan, expires_at, activated_at FROM farms ${scope} LIMIT 1000`),
+    ).all<FarmInput>(),
+    bind(
+      c.env.DB.prepare(
+        `SELECT f.phone, f.name, p.plan, p.amount, (p.commission + p.bounty) AS earned, p.paid_at
+         FROM payments p JOIN farms f ON f.id = p.farm_id
+         ${everyone ? '' : 'WHERE p.agent_code = ?'} ${everyone ? 'WHERE' : 'AND'} p.plan != 'trial' AND p.amount > 0
+         ORDER BY p.paid_at DESC LIMIT 2000`,
+      ),
+    ).all<PaymentInput>(),
+  ]);
+
+  const pipeline = buildPipeline(
+    referralRows.results ?? [],
+    farmRows.results ?? [],
+    paymentRows.results ?? [],
+    todayInNairobi(),
+  );
+
+  return c.json({ currency: PRICE_CURRENCY, today: todayInNairobi(), ...pipeline });
+});
+
 /** Every payment they have earned on, newest first. */
 agents.get('/me/earnings', async (c) => {
   const queryCode = c.req.query('code')?.trim();
@@ -216,7 +264,7 @@ agents.post('/register', async (c) => {
     `INSERT INTO agents (code, name, phone, api_key_hash, commission_rate, activation_bounty, active)
      VALUES (?, ?, ?, ?, ?, ?, 1)`,
   )
-    .bind(code, name, phone, apiKeyHash, 0.10, 750)
+    .bind(code, name, phone, apiKeyHash, DEFAULT_COMMISSION_RATE, DEFAULT_ACTIVATION_BOUNTY)
     .run();
 
   return c.json({
@@ -224,8 +272,8 @@ agents.post('/register', async (c) => {
       code,
       name,
       phone,
-      commissionRate: 0.10,
-      activationBounty: 750,
+      commissionRate: DEFAULT_COMMISSION_RATE,
+      activationBounty: DEFAULT_ACTIVATION_BOUNTY,
     },
     apiKey,
     isExisting: false,

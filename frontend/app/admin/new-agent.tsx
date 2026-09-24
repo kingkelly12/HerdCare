@@ -12,6 +12,7 @@ import { useColors } from '@/theme/colors';
 import { notifySaved } from '@/lib/haptics';
 import { createAdminAgent, type CreateAgentResult } from '@/lib/api/agency';
 import { getStoredAdminSession } from '@/lib/agencyStorage';
+import { DEFAULT_TERMS } from '@/lib/agent/earnings';
 
 export default function NewAgentScreen() {
   const colors = useColors();
@@ -19,7 +20,7 @@ export default function NewAgentScreen() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
-  const [commissionRate, setCommissionRate] = useState('10');
+  const [commissionRate, setCommissionRate] = useState(String(Math.round(DEFAULT_TERMS.commissionRate * 100)));
   const [bounty, setBounty] = useState('750');
 
   const [busy, setBusy] = useState(false);
@@ -49,7 +50,7 @@ export default function NewAgentScreen() {
     setBusy(true);
     setError(null);
 
-    const rateNum = parseFloat(commissionRate) / 100 || 0.1;
+    const rateNum = parseFloat(commissionRate) / 100 || DEFAULT_TERMS.commissionRate;
     const bountyNum = parseFloat(bounty) || 750;
 
     const res = await createAdminAgent(session.token, {
@@ -144,7 +145,7 @@ export default function NewAgentScreen() {
       <Animated.View entering={FadeInDown.duration(300)} className="gap-1 pt-6">
         <Text className="text-title font-sans-bold text-primary">Register New Agent</Text>
         <Text className="text-callout text-secondary">
-          Field agents earn a 10% recurring commission on every subscription renewal plus an activation bounty.
+          Field agents earn a {Math.round(DEFAULT_TERMS.commissionRate * 100)}% recurring commission on every subscription renewal plus an activation bounty.
         </Text>
       </Animated.View>
 

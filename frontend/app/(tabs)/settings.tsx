@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, Switch, Text, View } from 'react-native';
+import { Pressable, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -10,7 +10,6 @@ import { Surface } from '@/components/ui/Surface';
 import { Button } from '@/components/ui/Button';
 import { Segmented } from '@/components/ui/Segmented';
 import { TextField } from '@/components/ui/TextField';
-import { Callout } from '@/components/ui/Callout';
 import { db } from '@/db/client';
 import { updateSettings } from '@/db/reminders';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
@@ -21,8 +20,7 @@ import { CloudBackupSection } from '@/components/settings/CloudBackupSection';
 import { router, useFocusEffect } from 'expo-router';
 import { getCloudAccount } from '@/db/cloudAccount';
 import { useColors } from '@/theme/colors';
-import { useLicense } from '@/components/license/LicenseProvider';
-import { notifySaved } from '@/lib/haptics';
+import { REFERRAL_BONUS_LABEL } from '@/lib/license/status';
 
 const DIGEST_HOUR_OPTIONS = ['5', '6', '7', '8'].map((hour) => ({ value: hour, label: `${hour}:00` }));
 
@@ -89,34 +87,6 @@ export default function SettingsScreen() {
   const [meatPrice, setMeatPrice] = useState<string | null>(null);
   const [currency, setCurrency] = useState<string | null>(null);
 
-  const { refresh: refreshLicense } = useLicense();
-  const [inputReferral, setInputReferral] = useState('');
-  const [savingReferral, setSavingReferral] = useState(false);
-  const [referralError, setReferralError] = useState<string | null>(null);
-
-  async function handleApplyReferral() {
-    const code = inputReferral.trim().toUpperCase();
-    if (!code) {
-      setReferralError('Enter an agent or farmer referral code.');
-      return;
-    }
-    setSavingReferral(true);
-    setReferralError(null);
-    try {
-      await updateSettings({ agentCode: code });
-      await refreshLicense();
-      notifySaved();
-      setInputReferral('');
-      Alert.alert(
-        'Bonus Days Activated!',
-        `Linked to agent ${code}. You have unlocked +7 extra free trial days!`,
-      );
-    } catch {
-      setReferralError('Failed to save referral code.');
-    } finally {
-      setSavingReferral(false);
-    }
-  }
   const milkPriceValue = milkPrice ?? String(prefs?.milkPricePerLitre ?? 0);
   const eggPriceValue = eggPrice ?? String(prefs?.eggPricePerTray ?? 0);
   const eggUnitPriceValue = eggUnitPrice ?? String(prefs?.eggPricePerEgg ?? 0);
@@ -260,62 +230,23 @@ export default function SettingsScreen() {
       <View className="gap-2">
         <SectionTitle>Subscription & Referral</SectionTitle>
         <SubscriptionSection />
-        <Surface level="raised" className="p-4 gap-3">
-          {prefs?.agentCode ? (
-            <View className="flex-row items-center justify-between">
-              <View className="flex-row items-center gap-3 flex-1">
-                <View className="h-10 w-10 items-center justify-center rounded-pill bg-brand-soft">
-                  <Ionicons name="gift" size={20} color={colors.brand} />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-body font-sans-medium text-primary">Referral Code Linked</Text>
-                  <Text className="text-label text-secondary">
-                    Agent <Text className="font-sans-bold text-brand">{prefs.agentCode}</Text> · +7 bonus days active
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="checkmark-circle" size={22} color={colors.brand} />
-            </View>
-          ) : (
-            <View className="gap-3">
-              <View className="flex-row items-center gap-3">
-                <View className="h-10 w-10 items-center justify-center rounded-pill bg-brand-soft">
-                  <Ionicons name="gift-outline" size={20} color={colors.brand} />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-body font-sans-medium text-primary">Introduced by a farmer?</Text>
-                  <Text className="text-label text-tertiary">
-                    Enter their referral code to unlock +7 extra free trial days.
-                  </Text>
-                </View>
-              </View>
-
-              <View className="flex-row gap-2 items-center pt-1">
-                <View className="flex-1">
-                  <TextField
-                    label="Agent or Farmer Code"
-                    value={inputReferral}
-                    onChangeText={(t) => {
-                      setInputReferral(t.toUpperCase());
-                      setReferralError(null);
-                    }}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                    placeholder="e.g. KIP-492"
-                  />
-                </View>
-                <View className="pt-5">
-                  <Button
-                    label="Apply"
-                    variant="primary"
-                    loading={savingReferral}
-                    onPress={handleApplyReferral}
-                  />
-                </View>
-              </View>
-              {referralError ? <Callout tone="warn">{referralError}</Callout> : null}
-            </View>
-          )}
+        <Surface level="raised">
+          <Row
+            icon={prefs?.agentCode ? 'people' : 'people-outline'}
+            title={
+              prefs?.agentCode
+                ? `Your agent: ${prefs.referralAgentName ?? prefs.agentCode}`
+                : 'Helped by an agent?'
+            }
+            subtitle={
+              prefs?.agentCode
+                ? prefs.referralSyncedAt
+                  ? `${prefs.agentCode} · They can see when your free trial ends`
+                  : `${prefs.agentCode} · Will reach them next time you have internet`
+                : `Add their code so they can help you later, and get ${REFERRAL_BONUS_LABEL} free.`
+            }
+            onPress={() => router.push('/referral' as any)}
+          />
         </Surface>
       </View>
 

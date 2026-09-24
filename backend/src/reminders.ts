@@ -21,6 +21,9 @@ export async function sendRenewalNotices(env: Env): Promise<{ checked: number; s
   const { results } = await env.DB.prepare(
     `SELECT * FROM farms
      WHERE expires_at >= date(?, '-${GRACE_DAYS} days') AND expires_at <= date(?, '+${WARN_DAYS} days')
+       -- A farmer on the free trial is warned by the app itself, at no cost. An SMS is only worth
+       -- paying for to reach somebody who is already paying.
+       AND plan != 'trial'
      ORDER BY expires_at ASC LIMIT 500`,
   )
     .bind(today, today)

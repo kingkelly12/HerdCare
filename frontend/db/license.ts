@@ -30,7 +30,7 @@ export async function loadLicenseStatus(): Promise<LicenseStatus> {
   const deviceToday = todayYmd();
 
   // A paid or owner licence always wins over the trial. Somebody who paid part way through their
-  // free month keeps what they bought rather than being held to the trial's end date.
+  // free trial keeps what they bought rather than being held to the trial's end date.
   if (row) {
     const today = effectiveToday(deviceToday, row.clockHighWater);
 
@@ -47,11 +47,11 @@ export async function loadLicenseStatus(): Promise<LicenseStatus> {
 }
 
 /**
- * Reads the free month, starting it if this is the first launch.
+ * Reads the free trial, starting it if this is the first launch.
  *
  * Starting it here rather than behind a button is the point: a new farmer should be able to log a
  * calving without being shown a price, asked for a code, or introduced to an agent. The bill comes
- * up a month later, once the app has earned the conversation.
+ * up six months later, once the app has earned the conversation.
  */
 async function startOrReadTrial(today: string): Promise<LicenseStatus> {
   const prefs = await getSettings();

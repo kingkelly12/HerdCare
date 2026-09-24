@@ -17,6 +17,7 @@ import {
   farmRevenuePerYear,
   paymentsPerYear,
 } from '@/lib/agent/earnings';
+import { TRIAL_LENGTH_LABEL } from '@/lib/license/status';
 
 /**
  * What an agent earns, and why it is worth their time.
@@ -90,7 +91,7 @@ export default function AgentEarningsScreen() {
       <Animated.View entering={FadeInDown.duration(280).delay(60)}>
         <Surface level="raised" className="flex-row gap-4 p-4">
           <Stat
-            label="When you sign one"
+            label="When one starts paying"
             value={money(earnedAtSigning('quarterly', terms))}
             note={`In your M-Pesa that week. ${money(terms.activationBounty)} bounty plus your first ${money(commissionPerPayment('quarterly', terms))} commission.`}
           />
@@ -168,9 +169,10 @@ export default function AgentEarningsScreen() {
             just gives it somewhere else to earn.
           </Point>
           <Point icon="gift" title="Nothing to ask for on the first visit">
-            Every farmer gets their first month free, with no code and no payment. You are handing
-            over something free that works. The money conversation happens a month later, once the
-            app has already proved itself.
+            Every farmer gets their first {TRIAL_LENGTH_LABEL} free, with no code and no payment. You
+            are handing over something free that works. The money conversation happens when those
+            months run out, once the app has proved itself, and your portal tells you whose are
+            ending so you can be there for it.
           </Point>
           <Point icon="walk" title="No travel, no targets, no boss">
             You choose who and when. There is no quota to miss and nobody checking on you. Stop for
@@ -209,7 +211,7 @@ export default function AgentEarningsScreen() {
         <Surface level="raised" className="gap-0 p-0">
           <View className="flex-row border-b border-line px-4 py-2.5">
             <Text className="flex-1 text-label font-sans-semibold uppercase text-tertiary">Plan</Text>
-            <Text className="w-24 text-right text-label font-sans-semibold uppercase text-tertiary">At signing</Text>
+            <Text className="w-24 text-right text-label font-sans-semibold uppercase text-tertiary">First pay</Text>
             <Text className="w-20 text-right text-label font-sans-semibold uppercase text-tertiary">Year 1</Text>
             <Text className="w-20 text-right text-label font-sans-semibold uppercase text-tertiary">After</Text>
           </View>
@@ -236,9 +238,10 @@ export default function AgentEarningsScreen() {
         </Surface>
         <Text className="text-label text-tertiary">
           On the monthly plan the {money(terms.activationBounty)} bounty is held until that farm has
-          paid twice, so it is not counted at signing. On quarterly and annual it is paid straight
-          away, because those months are already banked. A free trial earns nothing, because nothing
-          has been paid.
+          paid twice, so it is not counted in the first payment. On quarterly and annual it is paid
+          straight away, because those months are already banked. The {TRIAL_LENGTH_LABEL} free trial
+          earns nothing, because nothing has been paid: you start earning the week a farmer first
+          pays.
         </Text>
       </Animated.View>
 

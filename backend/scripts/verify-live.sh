@@ -136,7 +136,7 @@ AFTER="$(d1val "SELECT expires_at FROM farms WHERE phone='$FARM_PHONE'")"
 check "and extends the subscription ($BEFORE -> $AFTER)" '[ "$AFTER" \> "$BEFORE" ]'
 check "the farm is now on the plan it paid for" '[ "$(d1val "SELECT plan FROM farms WHERE phone='"'"'$FARM_PHONE'"'"'")" = "quarterly" ]'
 check "the payment is recorded with its receipt" '[ "$(d1val "SELECT COUNT(*) FROM payments WHERE mpesa_ref='"'"'TESTRCPT001'"'"'")" = "1" ]'
-check "the agent earned 10% commission (280)" '[ "$(d1val "SELECT commission FROM payments WHERE mpesa_ref='"'"'TESTRCPT001'"'"'")" = "280" ]'
+check "the agent earned 20% commission (560)" '[ "$(d1val "SELECT commission FROM payments WHERE mpesa_ref='"'"'TESTRCPT001'"'"'")" = "560" ]'
 check "and the 750 bounty on a first quarterly payment" '[ "$(d1val "SELECT bounty FROM payments WHERE mpesa_ref='"'"'TESTRCPT001'"'"'")" = "750" ]'
 
 callback "$CB_SECRET" 2800 "TESTRCPT001" >/dev/null

@@ -1,19 +1,22 @@
 import '@/global.css';
 import { useCallback, useEffect } from 'react';
-import { Text, View } from 'react-native';
+import { InteractionManager, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack, ThemeProvider, DarkTheme, DefaultTheme } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
 import { db } from '@/db/client';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
+import { syncAgentLink } from '@/lib/referral';
+import { refreshAgentFollowUps } from '@/lib/agent/followUps';
+import { NotificationRouter } from '@/components/NotificationRouter';
 import { UndoToastHost } from '@/components/ui/UndoToast';
 import { LicenseProvider } from '@/components/license/LicenseProvider';
 import { WriteRouteGuard } from '@/components/license/WriteRouteGuard';
 import { useColors, useIsDark } from '@/theme/colors';
+import { useAppFonts } from '@/lib/fonts';
 import migrations from '@/drizzle/migrations';
 
 // Keep splash screen visible while fonts and database migrations initialize
@@ -24,17 +27,15 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 // This lets go regardless after a few seconds; a slow start then shows the app or an error screen.
 setTimeout(() => SplashScreen.hide(), 5000);
 
+/** How long after the first screen settles before launch housekeeping runs. */
+const STARTUP_HOUSEKEEPING_DELAY_MS = 2500;
+
 export default function RootLayout() {
   const { success, error } = useMigrations(db, migrations);
   const colors = useColors();
   const isDark = useIsDark();
 
-  const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-  });
+  const [fontsLoaded, fontError] = useAppFonts();
 
   const ready = success && (fontsLoaded || !!fontError);
 
@@ -48,11 +49,32 @@ export default function RootLayout() {
     SplashScreen.hideAsync().catch(() => {});
   }, []);
 
+  // Re-deriving reminders and re-queuing the daily briefings is housekeeping, not something the
+  // first screen needs: Today refreshes its own reminders as soon as it appears. Run at launch, this
+  // used to compete with drawing that first screen for the one JavaScript thread, keeping the
+  // splash up for seconds after the app was actually ready. So it waits until the first screen
+  // has settled, and then a moment more.
   useEffect(() => {
-    if (success) {
-      refreshRemindersAndNotifications().catch(() => {});
-    }
-  }, [success]);
+    if (!ready) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const task = InteractionManager.runAfterInteractions(() => {
+      timer = setTimeout(() => {
+        // In order, not all at once: the reminder refresh settles the notification schedule before
+        // the agent's follow-ups are laid over it. The two network calls are quiet no-ops with no
+        // signal, or on a phone that has never linked to an agent or signed in as one.
+        refreshRemindersAndNotifications()
+          .catch(() => {})
+          .then(() => syncAgentLink())
+          .catch(() => {})
+          .then(() => refreshAgentFollowUps())
+          .catch(() => {});
+      }, STARTUP_HOUSEKEEPING_DELAY_MS);
+    });
+    return () => {
+      task.cancel();
+      if (timer) clearTimeout(timer);
+    };
+  }, [ready]);
 
   if (error) {
     return (
@@ -84,9 +106,10 @@ export default function RootLayout() {
   };
 
   return (
-    // Opaque from here on. The artwork is the window's permanent background, so without this it would
-    // show through anything transparent — a screen transition, an overscroll, a keyboard animation.
-    <GestureHandlerRootView className="flex-1" style={{ backgroundColor: colors.canvas }} onLayout={handleFirstLayout}>
+    // `flex: 1` must live in `style`, not `className`. Passing both lets the explicit style replace the
+    // class, which collapsed this root to zero height: the whole app rendered, invisibly, over a blank
+    // window. The canvas colour keeps the window background from showing through transparent frames.
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.canvas }} onLayout={handleFirstLayout}>
       <SafeAreaProvider>
         <ThemeProvider value={navTheme}>
           <StatusBar style={isDark ? 'light' : 'dark'} />
@@ -175,7 +198,7 @@ export default function RootLayout() {
               <Stack.Screen name="agent/earnings" options={{ headerShown: true, title: 'What you earn' }} />
               <Stack.Screen
                 name="referral"
-                options={{ presentation: 'modal', headerShown: true, title: 'Referral Bonus' }}
+                options={{ presentation: 'modal', headerShown: true, title: 'Your agent' }}
               />
               <Stack.Screen
                 name="agent/join"
@@ -189,6 +212,7 @@ export default function RootLayout() {
             </Stack>
             {/* Outside the navigator, so one list of write routes also covers deep links. */}
             <WriteRouteGuard />
+            <NotificationRouter />
             <UndoToastHost />
           </LicenseProvider>
         </ThemeProvider>

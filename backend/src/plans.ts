@@ -14,7 +14,8 @@ export function isPlan(value: unknown): value is Plan {
 
 /** Whole calendar months, so every renewal lands on the same date rather than drifting. */
 export const PLAN_MONTHS: Record<Plan, number> = {
-  trial: 1,
+  // The free trial: six months, matching the one every install starts for itself.
+  trial: 6,
   monthly: 1,
   quarterly: 3,
   annual: 12,
@@ -24,6 +25,25 @@ export const PLAN_MONTHS: Record<Plan, number> = {
 };
 
 export const PRICE_CURRENCY = 'KES';
+
+/**
+ * The free trial every install starts for itself, and the bonus for being introduced by an agent.
+ * Mirrors TRIAL_MONTHS and REFERRAL_BONUS_MONTHS in frontend/lib/license/status.ts: the phone counts
+ * its own trial, and these only let the server show an agent the same end date the farmer sees.
+ */
+export const TRIAL_MONTHS = 6;
+export const REFERRAL_BONUS_MONTHS = 1;
+
+/** The last day of a referred farmer's trial, inclusive. Same arithmetic as the app's trialEndsOn. */
+export function referredTrialEndsOn(trialStartedAt: string): string {
+  return addDaysYmd(addMonthsYmd(trialStartedAt, TRIAL_MONTHS + REFERRAL_BONUS_MONTHS), -1);
+}
+
+/** Adds whole days to a YYYY-MM-DD. */
+export function addDaysYmd(ymd: string, days: number): string {
+  const [year, month, day] = ymd.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
 
 export const PLAN_PRICES: Record<Plan, number> = {
   trial: 0,

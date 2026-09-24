@@ -6,11 +6,13 @@ import { applyPayment, describeFarm, issueToken } from './subscription';
 import { randomOtp, randomToken, secretsMatch, sha256Hex } from './crypto';
 import { sendRenewalNotices } from './reminders';
 import { mayRecoverFarm } from './authz';
+import { DEFAULT_ACTIVATION_BOUNTY, DEFAULT_COMMISSION_RATE } from './commission';
 import { getPaymentProvider } from './payments';
 import { auth } from './routes/auth';
 import { backup } from './routes/backup';
 import { pay } from './routes/pay';
 import { agents } from './routes/agents';
+import { referrals } from './routes/referrals';
 
 /** Set by `requireAdminOrAgent`, so a handler knows whether it may act beyond one agent's farms. */
 type CallerVariables = { isAdmin: boolean; agentCode: string | null };
@@ -69,6 +71,7 @@ app.route('/auth', auth);
 app.route('/backup', backup);
 app.route('/pay', pay);
 app.route('/agents', agents);
+app.route('/referrals', referrals);
 
 /**
  * Activates a farm, or renews one that already exists.
@@ -193,8 +196,8 @@ app.post('/admin/agents', requireAdmin, async (c) => {
       name.trim(),
       typeof phone === 'string' ? normalisePhone(phone) : null,
       await sha256Hex(key),
-      typeof commissionRate === 'number' ? commissionRate : 0.1,
-      typeof activationBounty === 'number' ? activationBounty : 750,
+      typeof commissionRate === 'number' ? commissionRate : DEFAULT_COMMISSION_RATE,
+      typeof activationBounty === 'number' ? activationBounty : DEFAULT_ACTIVATION_BOUNTY,
     )
     .run();
 

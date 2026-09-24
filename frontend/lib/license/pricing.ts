@@ -18,7 +18,7 @@ export const PRICE_CURRENCY = 'KES';
  * and the price they were quoted out of step.
  */
 export const PLAN_MONTHS: Record<Plan, number> = {
-  trial: 1,
+  trial: 6,
   monthly: 1,
   quarterly: 3,
   annual: 12,

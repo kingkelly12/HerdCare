@@ -18,6 +18,8 @@ import { RENEWAL_NOTICE_DAYS } from '@/lib/license/status';
 import { useColors } from '@/theme/colors';
 import { REMINDER_TYPE_META, isReminderTypeEnabled } from '@/utils/reminderRules';
 import { addDaysIso, daysFromToday, formatDateForDisplay, startOfTodayIso } from '@/utils/livestockRules';
+import { DEFAULT_TERMS } from '@/lib/agent/earnings';
+import { AgentTodayCard } from '@/components/agent/AgentTodayCard';
 
 /** How far ahead the "Due soon" figure looks. */
 const DUE_SOON_DAYS = 30;
@@ -204,11 +206,13 @@ export default function HomeScreen() {
         {trialDaysLeft !== null ? (
           <Text className="text-callout text-tertiary">
             {trialDaysLeft === 0
-              ? 'Free month ends today'
+              ? 'Free trial ends today'
               : `Free for another ${trialDaysLeft} ${trialDaysLeft === 1 ? 'day' : 'days'}`}
           </Text>
         ) : null}
       </Animated.View>
+
+      <AgentTodayCard />
 
       {/* 7-Day Referral / Community Agent Suggestion */}
       {trialDaysLeft !== null ? (
@@ -230,7 +234,7 @@ export default function HomeScreen() {
               </PressableSurface>
             </View>
             <Text className="text-callout text-secondary">
-              Recruit neighboring farmers and earn 10% of their subscriptions + KSh 750 bounty. Cover your own subscription and earn extra income.
+              Recruit neighboring farmers and earn {Math.round(DEFAULT_TERMS.commissionRate * 100)}% of their subscriptions + KSh {DEFAULT_TERMS.activationBounty} bounty. Cover your own subscription and earn extra income.
             </Text>
             <Button
               label="Become an Agent"

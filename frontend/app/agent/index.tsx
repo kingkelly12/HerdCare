@@ -18,6 +18,8 @@ import {
   getAgentFarms,
   getAgentEarnings,
   getAdminAgents,
+  getAgentPipeline,
+  type AgentPipeline,
   type AgentSummary,
   type AgentFarm,
   type AgentEarning,
@@ -29,6 +31,9 @@ import {
   clearAgentSession,
   getStoredAdminSession,
 } from '@/lib/agencyStorage';
+import { PipelineList, WhatsNew } from '@/components/agent/Pipeline';
+import { acceptPipeline, clearAgentFollowUps, markPipelineSeen, readCachedPipeline } from '@/lib/agent/followUps';
+import { REFERRAL_BONUS_LABEL, TRIAL_LENGTH_LABEL } from '@/lib/license/status';
 
 export default function AgentScreen() {
   const colors = useColors();
@@ -52,6 +57,11 @@ export default function AgentScreen() {
   const [summary, setSummary] = useState<AgentSummary | null>(null);
   const [farms, setFarms] = useState<AgentFarm[]>([]);
   const [earnings, setEarnings] = useState<AgentEarning[]>([]);
+  // Farmers from introduction to paying. Null on a server too old to have it, in which case the
+  // plain list of paying farms above is shown instead.
+  const [pipeline, setPipeline] = useState<AgentPipeline | null>(null);
+  // When this agent last opened the portal, captured before this visit marks everything as seen.
+  const [seenAt] = useState<string | null>(() => readCachedPipeline()?.seenAt ?? null);
   const [tab, setTab] = useState<'farms' | 'earnings'>('farms');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -89,12 +99,23 @@ export default function AgentScreen() {
 
   async function loadDashboard(token: string, code?: string) {
     setRefreshing(true);
-    const [meRes, farmsRes, earningsRes] = await Promise.all([
+    const [meRes, farmsRes, earningsRes, pipelineRes] = await Promise.all([
       getAgentMe(token, code),
       getAgentFarms(token, code),
       getAgentEarnings(token, code),
+      getAgentPipeline(token, code),
     ]);
     setRefreshing(false);
+
+    if (pipelineRes.ok) {
+      setPipeline(pipelineRes.data);
+      // Only an agent's own list sets reminders on this phone. An admin looking at somebody
+      // else's must not start receiving that agent's follow-ups.
+      if (!code) {
+        await acceptPipeline(pipelineRes.data);
+        markPipelineSeen();
+      }
+    }
 
     if (meRes.ok) {
       setSummary(meRes.data);
@@ -143,7 +164,9 @@ export default function AgentScreen() {
         style: 'destructive',
         onPress: async () => {
           await clearAgentSession();
+          await clearAgentFollowUps();
           setSession(null);
+          setPipeline(null);
           setSummary(null);
           setFarms([]);
           setEarnings([]);
@@ -169,7 +192,7 @@ export default function AgentScreen() {
     const msg =
       codeToShare === 'ALL'
         ? 'Karibu HerdCare! Download the app for complete cattle and poultry records offline: https://herdcare.app/apk'
-        : `Karibu HerdCare! Download the app for complete cattle and poultry records offline: https://herdcare.app/apk\n\nWhen setting up the app, enter my referral code: ${codeToShare} to unlock +7 EXTRA DAYS of free trial!\nOr tap here once installed: herdcare://referral?code=${codeToShare}`;
+        : `Karibu HerdCare! Keep your cattle, poultry and milk records on your phone, even with no network. The first ${TRIAL_LENGTH_LABEL} are free: https://herdcare.app/apk\n\nOnce installed, tap this to link to me and get ${REFERRAL_BONUS_LABEL} free: herdcare://referral?code=${codeToShare}\nOr in the app: Settings, then Helped by an agent, code ${codeToShare}.`;
     Share.share({ message: msg }).catch(() => {});
   }
 
@@ -411,7 +434,8 @@ export default function AgentScreen() {
 
           <View className="pt-2 border-t border-line flex-row items-center justify-between">
             <Text className="text-callout text-secondary">
-              <Text className="font-sans-bold text-primary">{farms.length}</Text> Active Farmers Linked
+              <Text className="font-sans-bold text-primary">{pipeline ? pipeline.farmers.length : farms.length}</Text>{' '}
+              {pipeline ? 'farmers' : 'active farmers linked'}
             </Text>
             <Button
               label="Share App & Code"
@@ -434,16 +458,25 @@ export default function AgentScreen() {
           </Text>
           <View className="gap-1 pl-3 border-l-2 border-brand">
             <Text className="text-label text-primary">1. Open HerdCare → Settings</Text>
-            <Text className="text-label text-primary">2. Tap "Referral Code (Optional)"</Text>
+            <Text className="text-label text-primary">2. Tap "Helped by an agent?"</Text>
             <Text className="text-label text-primary">
-              3. Enter your code: <Text className="font-sans-bold text-brand">{displayCode}</Text>
+              3. Enter your code <Text className="font-sans-bold text-brand">{displayCode}</Text>, their M-Pesa number and name
             </Text>
           </View>
           <Text className="text-label text-secondary">
-            They instantly receive <Text className="font-sans-bold text-brand">+7 extra free trial days</Text>, and your {Math.round(DEFAULT_TERMS.commissionRate * 100)}% commission is permanently locked in.
+            They get <Text className="font-sans-bold text-brand">{REFERRAL_BONUS_LABEL} free</Text>, seven months in all. You see them in
+            your list as soon as their phone has internet, and HerdCare reminds you two weeks before
+            their free months end. When they pay with your code, you earn{' '}
+            {Math.round(DEFAULT_TERMS.commissionRate * 100)}% of every payment.
           </Text>
         </Surface>
       </Animated.View>
+
+      {pipeline ? (
+        <Animated.View entering={FadeInDown.duration(300).delay(100)}>
+          <WhatsNew events={pipeline.events} seenAt={inspectingCode ? null : seenAt} currency={pipeline.currency} />
+        </Animated.View>
+      ) : null}
 
       {/* Tab Switcher */}
       <Animated.View entering={FadeInDown.duration(300).delay(120)} className="flex-row gap-2 pt-2">
@@ -453,7 +486,7 @@ export default function AgentScreen() {
           className={`flex-1 items-center py-2.5 rounded-field ${tab === 'farms' ? 'bg-brand' : 'bg-surface'}`}
         >
           <Text className={`text-callout font-sans-semibold ${tab === 'farms' ? 'text-on-brand' : 'text-secondary'}`}>
-            My Farmers ({farms.length})
+            My Farmers ({pipeline ? pipeline.farmers.length : farms.length})
           </Text>
         </PressableSurface>
         <PressableSurface
@@ -470,7 +503,9 @@ export default function AgentScreen() {
       {/* Tab Content: Farmers List */}
       {tab === 'farms' ? (
         <Animated.View entering={FadeInDown.duration(300).delay(180)} className="gap-2">
-          {farms.length === 0 ? (
+          {pipeline ? (
+            <PipelineList farmers={pipeline.farmers} currency={pipeline.currency} agentCode={displayCode} />
+          ) : farms.length === 0 ? (
             <Surface level="raised" className="p-6 items-center gap-2">
               <Ionicons name="people-outline" size={32} color={colors.tertiary} />
               <Text className="text-body font-sans-medium text-primary">No farmers linked yet</Text>

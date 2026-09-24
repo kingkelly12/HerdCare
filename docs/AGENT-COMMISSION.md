@@ -26,21 +26,28 @@ Two things, on every farm you sign.
 | | What | When |
 |---|---|---|
 | **Activation bounty** | **KES 750**, once per farm | On their first paid subscription |
-| **Ongoing commission** | **10%** of every payment that farm ever makes | Every time they pay, for as long as they stay |
+| **Ongoing commission** | **20%** of every payment that farm ever makes | Every time they pay, for as long as they stay |
+
+Every farmer starts with **six months free**. You earn nothing during those six months, because the
+farmer has paid nothing. You start earning the week they first pay, and from then on every time they
+pay.
 
 The bounty is what makes signing a farmer worth your time. The commission is what makes it worth
 keeping them happy afterwards.
 
-### It is the same money whichever plan they choose
+### It is close to the same money whichever plan they choose
 
 This is deliberate. You should never have to push a farmer onto a plan they cannot afford in order
-to earn properly.
+to earn properly. The bounty is the same on every plan. The only difference is your 20% of what
+the farmer pays, and monthly farmers pay a little more over a year than annual ones.
 
 | Plan | Farmer pays | You earn in their first year |
 |---|---|---|
-| Monthly | 1,000 per month | **1,950** |
-| Quarterly | 2,800 every 3 months | **1,870** |
-| Annual | 10,000 per year | **1,750** |
+| Monthly | 1,000 per month | **3,150** |
+| Quarterly | 2,800 every 3 months | **2,990** |
+| Annual | 10,000 per year | **2,750** |
+
+"First year" means the first twelve months after they start paying, not after they join.
 
 Sell whatever fits the farmer's pocket. A farmer on a plan they can sustain pays you for years. A
 farmer pushed onto an annual plan they cannot afford lapses in March and pays you nothing again.
@@ -52,12 +59,14 @@ sign nobody new.
 
 | Active farms you have signed | Ongoing commission per month | Plus, if you sign 5 new farms that month |
 |---|---|---|
-| 20 | ~1,870 | +5,150 |
-| 50 | ~4,670 | +5,150 |
-| 100 | ~9,330 | +5,150 |
+| 20 | ~3,730 | +6,550 |
+| 50 | ~9,330 | +6,550 |
+| 100 | ~18,670 | +6,550 |
 
-(Assumes farms on the quarterly plan. An agrovet counter holding 50 active farms and signing a
-handful each month is earning around **10,000 a month** for conversations happening at the till.)
+(Assumes farms on the quarterly plan. "Signing" here means a farmer making their first payment,
+which is six months after they join. An agrovet counter holding 50 paying farms, with a handful
+more coming off their free trial each month, is earning around **15,000 a month** for conversations
+happening at the till.)
 
 The flip side is honest: if your farms stop paying, your monthly income stops with them. That is
 the point. You are paid to keep farmers succeeding with the app, not just to sign them.
@@ -73,14 +82,16 @@ receive it once that farmer has paid twice. Two reasons: it protects against som
 one month and vanishing, and it keeps the scheme honest for everybody. On quarterly and annual the
 bounty is paid straight away, because those are months already banked.
 
-**Free trials earn nothing.** A 30-day trial is a tool for closing a sale, not a sale. You earn when
-the farmer pays.
+**Free trials earn nothing.** The six-month trial is a tool for closing a sale, not a sale. You earn
+when the farmer pays.
 
 **You earn on a farm for as long as it keeps paying.** There is no cut-off after a year. If a farmer
-you signed in 2026 is still paying in 2030, you are still earning 10%.
+you signed in 2026 is still paying in 2030, you are still earning 20%.
 
-**A farm belongs to the agent who first activated it.** Agent codes are recorded on every payment,
-so this is not a matter of memory or argument.
+**A farm belongs to the agent whose code the farmer entered.** The code is saved on the farmer's
+phone and sent along with their first M-Pesa payment, and it is recorded on every payment after
+that, so this is not a matter of memory or argument. Make sure your code is in their phone before
+you leave: Settings, then *Helped by an agent?*
 
 **Nobody is charged anything to become an agent.** If someone asks you to pay a joining fee, a
 training fee, or to buy stock, that is not HerdCare and you should report it.
@@ -126,13 +137,37 @@ watch them try to remember.
 
 ## 6. Getting started as an agent
 
-1. You receive an agent code, for example `AGT-042`, and a key for checking your earnings.
-2. Give a farmer a **free 30-day trial** on the spot. It costs nothing and needs no payment.
-3. Help them enter their animals. This is the step that decides whether they stay, so do not skip
-   it. A farmer with an empty app will not renew.
-4. Come back within the month. By then the app will have reminded them of something real, and that
-   is the conversation that closes the sale.
-5. They pay by M-Pesa from inside the app, and their subscription starts immediately.
+1. You receive an agent code, for example `AGT-042`, and a key for the Agent Portal in the app.
+2. Install HerdCare on the farmer's phone. The **six-month free trial** starts by itself. It costs
+   nothing and needs no payment.
+3. On their phone: Settings, then *Helped by an agent?* Enter your code, their M-Pesa number and
+   their name. They get 1 extra free month (seven in all), and they appear in your Agent Portal as soon as their
+   phone has internet.
+4. Help them enter their animals. This is the step that decides whether they stay, so do not skip
+   it. A farmer with an empty app will not pay.
+5. Your phone reminds you **two weeks before** their free months end, and again two days before.
+   Visit or call then. By that point the app has spent six months reminding them of real things,
+   and that is the conversation that closes the sale.
+6. They pay by M-Pesa from inside the app. You see it in your portal as *started paying*, with
+   what you earned.
+
+## 7. Following your farmers
+
+The Agent Portal shows every farmer you have, sorted by what needs doing:
+
+- **Follow up this month**: free trials ending within 30 days, and paying farmers whose next
+  payment is due within a week. This is where you earn.
+- **On free trial**: help them use the app. A full app sells itself when the trial ends.
+- **Paying**: earning for you every time they pay, with what each farm has earned you so far.
+- **Not paying**: trials that ended unpaid, and farmers who stopped. Worth a visit when you are
+  nearby.
+
+At the top is **New since you last looked**: who joined with your code, who started paying and
+what it earned you, and who renewed. Each farmer has a Call and a WhatsApp button with a message
+already written for their situation.
+
+The reminders are set on your own phone, so they arrive on the day even if you have not opened
+HerdCare for months, and they cost nobody anything.
 
 ---
 
@@ -143,8 +178,8 @@ Everything above is what the agent sees. This part is for you.
 ## Recruiting
 
 You cannot sell this alone, and you should not try to build a field sales force either.
-Door-to-door does not work at these prices: an hour of travel for one farm earns an agent 1,030,
-and they will stop after a week.
+Door-to-door does not work at these prices: an hour of travel for one farm earns an agent 1,310,
+and not until six months later when the farmer first pays. They will stop after a week.
 
 Recruit people who are **already a fixed point in a farmer's week**:
 
@@ -174,7 +209,7 @@ Rates are per agent, so you can offer a better deal to a high-volume partner wit
 anybody else's terms:
 
 ```bash
--d '{"code":"AGT-042","name":"Wanjiku Agrovet","commissionRate":0.12,"activationBounty":1000}'
+-d '{"code":"AGT-042","name":"Wanjiku Agrovet","commissionRate":0.25,"activationBounty":1000}'
 ```
 
 ## Paying out
@@ -194,12 +229,15 @@ payment as paid and is not designed to be undone.
 
 | Plan | Farmer pays, year 1 | Agent earns | Your share |
 |---|---|---|---|
-| Monthly | 12,000 | 1,950 | 84% |
-| Quarterly | 11,200 | 1,870 | 83% |
-| Annual | 10,000 | 1,750 | 83% |
+| Monthly | 12,000 | 3,150 | 73.8% |
+| Quarterly | 11,200 | 2,990 | 73.3% |
+| Annual | 10,000 | 2,750 | 72.5% |
 
-A distribution cost of roughly 17% is healthy for a channel-sold product, and it is steady across
-plans by design, so your margin does not depend on what an agent happens to sell.
+At 20% the distribution cost is roughly 26 to 28% of a farm's first paying year, falling to 20% in
+later years once the bounty has been paid. That is generous for a channel-sold product, and it is
+deliberate: the six-month free trial means an agent waits half a year for their first shilling, so
+the share has to be worth waiting for. It is still steady across plans, so your margin does not
+depend on what an agent happens to sell.
 
 ## Things to watch
 

@@ -11,10 +11,11 @@ import { bytesToBase64Url, base64UrlToBytes, bytesToUtf8, utf8ToBytes } from '..
 import { PLANS, signLicense, verifyLicense, type LicensePayload } from '../lib/license/token';
 import {
   GRACE_DAYS,
-  REFERRAL_BONUS_DAYS,
+  REFERRAL_BONUS_MONTHS,
   RENEWAL_NOTICE_DAYS,
-  TRIAL_DAYS,
+  TRIAL_MONTHS,
   addMonthsYmd,
+  trialEndsOn,
   canWrite,
   daysBetweenYmd,
   effectiveToday,
@@ -24,6 +25,7 @@ import {
 import { PLAN_PRICES, PURCHASABLE_PLANS, pricePerMonth } from '../lib/license/pricing';
 import { isWriteRoute } from '../lib/license/writeRoutes';
 import {
+  DEFAULT_TERMS,
   bookValue,
   commissionPerPayment,
   earnedAtSigning,
@@ -173,43 +175,50 @@ console.log('\nstatus');
 }
 
 
-console.log('\nthe free month');
+console.log('\nthe free trial');
 {
   const started = '2026-09-01';
   const at = (today: string) => readTrialStatus(started, today);
 
+  check('the trial is six months', TRIAL_MONTHS === 6);
   check('day one is a trial', at('2026-09-01').state === 'trial');
   check('a new farmer can log immediately', canWrite(at('2026-09-01')));
-  check('the whole first day counts', at('2026-09-01').state === 'trial' && (at('2026-09-01') as any).daysLeft === TRIAL_DAYS - 1);
-  check('still running mid-month', canWrite(at('2026-09-20')));
-  check('still running on the last day', at('2026-09-30').state === 'trial');
-  check('the last day is day 30', daysBetweenYmd(started, '2026-09-30') === TRIAL_DAYS - 1);
-  check('over the day after', at('2026-10-01').state === 'trial-ended');
-  check('writing stops when it ends', !canWrite(at('2026-10-01')));
-  check('and stays stopped', !canWrite(at('2026-12-25')));
+  check('six calendar months, less the first day, is the last day', trialEndsOn(started) === '2027-02-28');
+  check('the whole first day counts', (at('2026-09-01') as any).daysLeft === daysBetweenYmd('2026-09-01', '2027-02-28'));
+  check('still running a month in', canWrite(at('2026-10-15')));
+  check('still running five months in', canWrite(at('2027-02-01')));
+  check('still running on the last day', at('2027-02-28').state === 'trial');
+  check('the last day has 0 days left', (at('2027-02-28') as any).daysLeft === 0);
+  check('over the day after', at('2027-03-01').state === 'trial-ended');
+  check('writing stops when it ends', !canWrite(at('2027-03-01')));
+  check('and stays stopped', !canWrite(at('2027-12-25')));
 
-  // Crossing a month boundary must not shorten or lengthen it.
-  check('a trial started late in a month still gets 30 days', readTrialStatus('2026-01-20', '2026-02-18').state === 'trial');
-  check('and ends on the 31st day', readTrialStatus('2026-01-20', '2026-02-19').state === 'trial-ended');
+  // Calendar months, so the trial ends on the same date it began, whatever the months in between.
+  check('a trial started on 10 March runs through 9 September', trialEndsOn('2026-03-10') === '2026-09-09');
+  check('a trial started on 31 August ends at the end of February', trialEndsOn('2026-08-31') === '2027-02-27');
+  check('crossing a leap day', trialEndsOn('2027-09-01') === '2028-02-29');
 
-  // Referral bonus (+7 extra free trial days = 37 total days)
-  check('referral adds 7 extra days to trial', (readTrialStatus(started, '2026-09-01', true) as any).daysLeft === TRIAL_DAYS + REFERRAL_BONUS_DAYS - 1);
-  check('day 30 is still trial when referred', readTrialStatus(started, '2026-09-30', true).state === 'trial');
-  check('day 37 is the last day when referred', readTrialStatus(started, '2026-10-07', true).state === 'trial');
-  check('day 38 ends trial when referred', readTrialStatus(started, '2026-10-08', true).state === 'trial-ended');
+  // Referral bonus: one more calendar month, so seven in all.
+  check('the referral bonus is one month', REFERRAL_BONUS_MONTHS === 1);
+  check('a referred trial runs seven months', trialEndsOn(started, true) === '2027-03-31');
+  check('a referred trial started on 31 August ends at the end of March', trialEndsOn('2026-08-31', true) === '2027-03-30');
+  check('a referred trial started on 10 March runs through 9 October', trialEndsOn('2026-03-10', true) === '2026-10-09');
+  check('the unreferred last day is still trial when referred', readTrialStatus(started, '2027-03-01', true).state === 'trial');
+  check('the referred last day is a trial day', readTrialStatus(started, '2027-03-31', true).state === 'trial');
+  check('the day after the referred last day ends the trial', readTrialStatus(started, '2027-04-01', true).state === 'trial-ended');
 
-  // The Today screen stays silent for the first three weeks so farmers can explore and build
-  // their records freely. It only nudges them during the final week (<= 7 days left).
+  // The Today screen stays silent for almost the whole trial, so farmers can build their records
+  // freely. It only nudges them during the final week (<= 7 days left).
   const showsOnHome = (today: string) => {
     const st = at(today);
     return st.state === 'trial' && st.daysLeft <= RENEWAL_NOTICE_DAYS;
   };
   check('the home note is silent on day 1', !showsOnHome('2026-09-01'));
-  check('the home note is silent on day 7', !showsOnHome('2026-09-07'));
-  check('and stays silent mid-trial (day 20)', !showsOnHome('2026-09-20'));
-  check('the home note appears one week out (day 23, 7 days left)', showsOnHome('2026-09-23'));
-  check('the home note stays through the last day (day 30)', showsOnHome('2026-09-30'));
-  check('and is gone after it ends', !showsOnHome('2026-10-01'));
+  check('and stays silent five months in', !showsOnHome('2027-02-01'));
+  check('and eight days before the end', !showsOnHome('2027-02-20'));
+  check('the home note appears one week out (7 days left)', showsOnHome('2027-02-21'));
+  check('the home note stays through the last day', showsOnHome('2027-02-28'));
+  check('and is gone after it ends', !showsOnHome('2027-03-01'));
 }
 
 console.log('\nclock tampering');
@@ -230,43 +239,44 @@ console.log('\nagent earnings shown in the app');
   // These must equal what backend/src/commission.ts actually pays out. The backend suite asserts
   // the same figures from the other side; if the two ever disagree, an agent is being quoted a
   // number their M-Pesa will not match.
-  check('monthly commission is 100 a payment', commissionPerPayment('monthly') === 100);
-  check('quarterly commission is 280 a payment', commissionPerPayment('quarterly') === 280);
-  check('annual commission is 1,000 a payment', commissionPerPayment('annual') === 1000);
+  check('the standard rate is 20%', DEFAULT_TERMS.commissionRate === 0.2);
+  check('monthly commission is 200 a payment', commissionPerPayment('monthly') === 200);
+  check('quarterly commission is 560 a payment', commissionPerPayment('quarterly') === 560);
+  check('annual commission is 2,000 a payment', commissionPerPayment('annual') === 2000);
 
   check('payments a year: monthly 12', paymentsPerYear('monthly') === 12);
   check('payments a year: quarterly 4', paymentsPerYear('quarterly') === 4);
   check('payments a year: annual 1', paymentsPerYear('annual') === 1);
 
   // The headline number, and the one an agent can check against their phone the same week.
-  check('signing a quarterly farm pays 1,030', earnedAtSigning('quarterly') === 1030);
-  check('signing an annual farm pays 1,750', earnedAtSigning('annual') === 1750);
-  check('signing a monthly farm pays 100, bounty held', earnedAtSigning('monthly') === 100);
+  check('a quarterly farm\'s first payment pays 1,310', earnedAtSigning('quarterly') === 1310);
+  check('an annual farm\'s first payment pays 2,750', earnedAtSigning('annual') === 2750);
+  check('a monthly farm\'s first payment pays 200, bounty held', earnedAtSigning('monthly') === 200);
 
-  check('first year, monthly, is 1,950', earnedFirstYear('monthly') === 1950);
-  check('first year, quarterly, is 1,870', earnedFirstYear('quarterly') === 1870);
-  check('first year, annual, is 1,750', earnedFirstYear('annual') === 1750);
+  check('first year, monthly, is 3,150', earnedFirstYear('monthly') === 3150);
+  check('first year, quarterly, is 2,990', earnedFirstYear('quarterly') === 2990);
+  check('first year, annual, is 2,750', earnedFirstYear('annual') === 2750);
 
-  check('every year after, monthly, is 1,200', earnedEveryYearAfter('monthly') === 1200);
-  check('every year after, quarterly, is 1,120', earnedEveryYearAfter('quarterly') === 1120);
-  check('every year after, annual, is 1,000', earnedEveryYearAfter('annual') === 1000);
+  check('every year after, monthly, is 2,400', earnedEveryYearAfter('monthly') === 2400);
+  check('every year after, quarterly, is 2,240', earnedEveryYearAfter('quarterly') === 2240);
+  check('every year after, annual, is 2,000', earnedEveryYearAfter('annual') === 2000);
 
   check('a quarterly farm pays 11,200 a year', farmRevenuePerYear('quarterly') === 11200);
 
   const book = bookValue([10, 50, 100]);
-  check('10 farms yield 11,200 a year', book[0].yoursPerYear === 11200);
-  check('50 farms yield 56,000 a year', book[1].yoursPerYear === 56000);
-  check('100 farms yield 112,000 a year', book[2].yoursPerYear === 112000);
+  check('10 farms yield 22,400 a year', book[0].yoursPerYear === 22400);
+  check('50 farms yield 112,000 a year', book[1].yoursPerYear === 112000);
+  check('100 farms yield 224,000 a year', book[2].yoursPerYear === 224000);
   check(
-    'the share really is a tenth of what those farms pay',
-    book.every((r) => Math.round((r.yoursPerYear / r.revenuePerYear) * 100) === 10),
+    'the share really is a fifth of what those farms pay',
+    book.every((r) => Math.round((r.yoursPerYear / r.revenuePerYear) * 100) === 20),
   );
 
   // A custom rate must flow through everywhere rather than only some places.
-  const better = { commissionRate: 0.15, activationBounty: 1000 };
-  check('a 15% rate changes the per-payment figure', commissionPerPayment('quarterly', better) === 420);
-  check('and the signing figure', earnedAtSigning('quarterly', better) === 1420);
-  check('and the recurring figure', earnedEveryYearAfter('quarterly', better) === 1680);
+  const better = { commissionRate: 0.25, activationBounty: 1000 };
+  check('a 25% rate changes the per-payment figure', commissionPerPayment('quarterly', better) === 700);
+  check('and the first-payment figure', earnedAtSigning('quarterly', better) === 1700);
+  check('and the recurring figure', earnedEveryYearAfter('quarterly', better) === 2800);
 }
 
 console.log('\nwrite routes');

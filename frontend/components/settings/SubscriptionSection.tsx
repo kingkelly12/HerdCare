@@ -23,7 +23,7 @@ export function SubscriptionSection() {
   }
 
   const payload = 'payload' in status ? status.payload : null;
-  // Only shout when there is genuinely something to do. A farmer three days into a free month
+  // Only shout when there is genuinely something to do. A farmer three days into a free trial
   // does not need a warning icon; one three days from the end does.
   const urgent =
     status.state === 'expired' ||
@@ -37,9 +37,9 @@ export function SubscriptionSection() {
   const title = payload
     ? PLAN_LABELS[payload.plan]
     : status.state === 'trial'
-      ? 'Free month'
+      ? 'Free trial'
       : status.state === 'trial-ended'
-        ? 'Free month ended'
+        ? 'Free trial ended'
         : 'Not activated';
   const subtitle = payload
     ? `${describeStatus(status)} · paid to ${formatDateForDisplay(payload.exp)}`

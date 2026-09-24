@@ -10,6 +10,14 @@ import { PLAN_PRICES, type Plan } from './plans';
  * in six months.
  */
 
+/**
+ * The standard terms a new agent is signed on. Mirrors DEFAULT_TERMS in
+ * frontend/lib/agent/earnings.ts, which is what the app quotes to agents, so the two must agree.
+ * An agent's own row in the agents table can carry different terms; that row is what is paid.
+ */
+export const DEFAULT_COMMISSION_RATE = 0.2;
+export const DEFAULT_ACTIVATION_BOUNTY = 750;
+
 export interface CommissionInput {
   plan: Plan;
   amount: number;

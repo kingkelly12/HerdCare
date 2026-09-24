@@ -18,13 +18,13 @@ import type { Plan } from '@/lib/license/token';
 export const SELLABLE_PLANS: Plan[] = ['monthly', 'quarterly', 'annual'];
 
 export interface AgentTerms {
-  /** Share of each payment, as a fraction. 0.1 is the standard 10%. */
+  /** Share of each payment, as a fraction. 0.2 is the standard 20%. */
   commissionRate: number;
   /** Paid once per farm, on its first paid subscription. */
   activationBounty: number;
 }
 
-export const DEFAULT_TERMS: AgentTerms = { commissionRate: 0.1, activationBounty: 750 };
+export const DEFAULT_TERMS: AgentTerms = { commissionRate: 0.2, activationBounty: 750 };
 
 function round(value: number): number {
   return Math.round(value * 100) / 100;
@@ -41,7 +41,7 @@ export function commissionPerPayment(plan: Plan, terms: AgentTerms = DEFAULT_TER
 }
 
 /**
- * What reaches the agent in the week they sign a farm.
+ * What reaches the agent in the week a farm they signed first pays.
  *
  * The number that decides whether the conversation was worth having, so it is the one to lead
  * with. On monthly the bounty is not included, because it genuinely has not been released yet.

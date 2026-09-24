@@ -12,8 +12,9 @@ import { join } from 'node:path';
 // Worker's WebCrypto signatures and the app's tweetnacl verifier agree.
 import nacl from 'tweetnacl';
 import { signLicense, normalisePhone, readUnverifiedPayload, type LicensePayload } from '../src/license';
-import { addMonthsYmd, daysBetweenYmd, todayInNairobi, PLAN_PRICES } from '../src/plans';
-import { calculateCommission, releasableBounty } from '../src/commission';
+import { addMonthsYmd, daysBetweenYmd, todayInNairobi, PLAN_PRICES, referredTrialEndsOn } from '../src/plans';
+import { buildPipeline } from '../src/pipeline';
+import { DEFAULT_ACTIVATION_BOUNTY, DEFAULT_COMMISSION_RATE, calculateCommission, releasableBounty } from '../src/commission';
 import { base64UrlToBytes, bytesToBase64Url, utf8ToBytes } from '../src/encoding';
 import { callbackMatchesPending, darajaTimestamp, stkPassword } from '../src/payments';
 import { createDaraja } from '../src/payments/daraja';
@@ -103,19 +104,20 @@ async function main() {
 
   console.log('\ncommission');
   {
-    const agent = { commissionRate: 0.1, activationBounty: 750 };
+    const agent = { commissionRate: DEFAULT_COMMISSION_RATE, activationBounty: DEFAULT_ACTIVATION_BOUNTY };
+    check('the standard rate is 20%', DEFAULT_COMMISSION_RATE === 0.2);
 
     const firstQuarterly = calculateCommission({ plan: 'quarterly', amount: 2800, ...agent, priorPayments: 0 });
-    check('quarterly pays bounty immediately', firstQuarterly.bounty === 750 && firstQuarterly.commission === 280);
+    check('quarterly pays bounty immediately', firstQuarterly.bounty === 750 && firstQuarterly.commission === 560);
 
     const firstAnnual = calculateCommission({ plan: 'annual', amount: 10000, ...agent, priorPayments: 0 });
-    check('annual pays bounty immediately', firstAnnual.bounty === 750 && firstAnnual.commission === 1000);
+    check('annual pays bounty immediately', firstAnnual.bounty === 750 && firstAnnual.commission === 2000);
 
     const firstMonthly = calculateCommission({ plan: 'monthly', amount: 1000, ...agent, priorPayments: 0 });
-    check('monthly holds the bounty back', firstMonthly.bounty === 0 && firstMonthly.commission === 100);
+    check('monthly holds the bounty back', firstMonthly.bounty === 0 && firstMonthly.commission === 200);
 
     const secondMonthly = calculateCommission({ plan: 'monthly', amount: 1000, ...agent, priorPayments: 1 });
-    check('a later payment pays commission only', secondMonthly.bounty === 0 && secondMonthly.commission === 100);
+    check('a later payment pays commission only', secondMonthly.bounty === 0 && secondMonthly.commission === 200);
 
     const trial = calculateCommission({ plan: 'trial', amount: 0, ...agent, priorPayments: 0 });
     check('a trial earns nothing at all', trial.commission === 0 && trial.bounty === 0);
@@ -178,7 +180,16 @@ async function main() {
     const annual = yearOn('annual', 1);
     const spread = Math.max(monthly, quarterly, annual) - Math.min(monthly, quarterly, annual);
     console.log(`         year one: monthly ${monthly}, quarterly ${quarterly}, annual ${annual}`);
-    check('a year earns within KES 250 whichever plan is sold', spread <= 250);
+    // The bounty is flat, so the only gap between plans is the agent's share of what the farmer
+    // pays: a monthly farmer pays 2,000 more a year than an annual one, and the agent gets their
+    // rate of that. No plan may carry an incentive beyond that, or agents would steer farmers onto
+    // it instead of the plan the farmer can keep paying.
+    const revenueSpread = 12 * PLAN_PRICES.monthly - PLAN_PRICES.annual;
+    check(
+      'plans differ only by the agent\'s share of the farmer\'s own price difference',
+      spread <= Math.round(agent.commissionRate * revenueSpread),
+    );
+    check('and that gap stays under 15% of a year\'s earnings', spread <= 0.15 * Math.min(monthly, quarterly, annual));
   }
 
 
@@ -261,7 +272,49 @@ async function main() {
     check('a caller with no identity may recover nothing', !rule({ isAdmin: false, callerAgentCode: null, farmAgentCode: 'KAMA-101' }));
   }
 
-  console.log('\nsecrets');
+  console.log('\nagent pipeline');
+{
+  const today = '2026-09-24';
+  const referrals = [
+    { phone: '254700000001', name: 'New on trial', trial_ends_at: '2027-03-31', created_at: '2026-09-20T08:00:00Z' },
+    { phone: '254700000002', name: 'Trial nearly over', trial_ends_at: '2026-10-10', created_at: '2026-04-03T08:00:00Z' },
+    { phone: '254700000003', name: 'Never paid', trial_ends_at: '2026-09-01', created_at: '2026-02-24T08:00:00Z' },
+    { phone: '254700000004', name: 'Now paying', trial_ends_at: '2026-08-01', created_at: '2026-01-24T08:00:00Z' },
+  ];
+  const farms = [
+    { phone: '254700000004', name: 'Now paying', plan: 'quarterly', expires_at: '2026-12-01', activated_at: '2026-08-02' },
+    { phone: '254700000005', name: 'Renewal due', plan: 'monthly', expires_at: '2026-09-27', activated_at: '2026-05-01' },
+    { phone: '254700000006', name: 'Stopped', plan: 'monthly', expires_at: '2026-08-01', activated_at: '2026-03-01' },
+  ];
+  const payments = [
+    { phone: '254700000004', name: 'Now paying', plan: 'quarterly', amount: 2800, earned: 1310, paid_at: '2026-09-02T09:00:00Z' },
+    { phone: '254700000005', name: 'Renewal due', plan: 'monthly', amount: 1000, earned: 200, paid_at: '2026-07-27T09:00:00Z' },
+    { phone: '254700000005', name: 'Renewal due', plan: 'monthly', amount: 1000, earned: 950, paid_at: '2026-08-27T09:00:00Z' },
+    { phone: '254700000006', name: 'Stopped', plan: 'monthly', amount: 1000, earned: 200, paid_at: '2026-07-01T09:00:00Z' },
+  ];
+  const { farmers, events } = buildPipeline(referrals, farms, payments, today);
+  const stageOf = (phone: string) => farmers.find((f) => f.phone === phone)?.stage;
+
+  check('a new referral is on trial', stageOf('254700000001') === 'trial');
+  check('a trial ending within a month is flagged', stageOf('254700000002') === 'trial-ending');
+  check('a trial that ran out unpaid is trial-ended', stageOf('254700000003') === 'trial-ended');
+  check('a referral that paid is paying', stageOf('254700000004') === 'paying');
+  check('a paid farm due within a week is renewal-due', stageOf('254700000005') === 'renewal-due');
+  check('a paid farm long past its date is lapsed', stageOf('254700000006') === 'lapsed');
+  check('everyone appears once', farmers.length === 6);
+  check('the most urgent comes first', farmers[0].stage === 'renewal-due');
+  check('earnings are summed per farmer', farmers.find((f) => f.phone === '254700000005')?.earned === 1150);
+  check('first payment is marked as such', events.some((e) => e.kind === 'first-payment' && e.phone === '254700000004' && e.earned === 1310));
+  check('later payments are renewals', events.some((e) => e.kind === 'renewed' && e.phone === '254700000005'));
+  check('joining is an event', events.some((e) => e.kind === 'joined' && e.phone === '254700000001'));
+  check('events are newest first', events[0].at >= events[events.length - 1].at);
+
+  // The server's idea of a referred trial must match the app's: seven months, less a day.
+  check('referred trial end matches the app', referredTrialEndsOn('2026-09-01') === '2027-03-31');
+  check('referred trial end across a short month', referredTrialEndsOn('2026-08-31') === '2027-03-30');
+}
+
+console.log('\nsecrets');
   {
     check('otp is six digits', /^\d{6}$/.test(randomOtp()));
     check('otp codes do not repeat', new Set(Array.from({ length: 200 }, () => randomOtp())).size > 150);

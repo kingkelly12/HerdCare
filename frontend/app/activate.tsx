@@ -28,6 +28,7 @@ import { useColors } from '@/theme/colors';
 import { formatDateForDisplay } from '@/utils/livestockRules';
 import { formatMoney } from '@/utils/money';
 import { notifySaved } from '@/lib/haptics';
+import { DEFAULT_TERMS } from '@/lib/agent/earnings';
 
 /** Who to call when a code does not arrive. Shown to the farmer, so keep it a real number. */
 const SUPPORT_PHONE = '+254705275707';
@@ -68,6 +69,8 @@ export default function ActivateScreen() {
     getSettings()
       .then((s) => {
         if (s?.agentCode) setAgentCode(s.agentCode);
+        // The number they gave their agent is almost always the one they pay from.
+        if (s?.farmerPhone) setPayPhone((current) => current || `0${s.farmerPhone!.slice(3)}`);
       })
       .catch(() => {});
   }, []);
@@ -215,7 +218,7 @@ export default function ActivateScreen() {
         </View>
         <Text className="text-title font-sans-bold text-primary">
           {onTrial
-            ? 'Your free month'
+            ? 'Your free trial'
             : active
               ? 'Subscription active'
               : status?.state === 'expired' || status?.state === 'trial-ended'
@@ -264,7 +267,7 @@ export default function ActivateScreen() {
                 <Ionicons name="gift-outline" size={18} color={colors.brand} />
               </View>
               <Text className="flex-1 text-callout font-sans-bold text-primary">
-                Share HerdCare with another farmer & earn 10%
+                Share HerdCare with another farmer & earn {Math.round(DEFAULT_TERMS.commissionRate * 100)}%
               </Text>
             </View>
             <Text className="text-callout text-secondary">
@@ -368,7 +371,8 @@ export default function ActivateScreen() {
               onChangeText={(next) => {
                 const upper = next.toUpperCase();
                 setAgentCode(upper);
-                updateSettings({ agentCode: upper.trim() }).catch(() => {});
+                // A changed code is re-sent to the server, so the right agent follows this farmer.
+                updateSettings({ agentCode: upper.trim() || null, referralSyncedAt: null }).catch(() => {});
               }}
               autoCapitalize="characters"
               autoCorrect={false}

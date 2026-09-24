@@ -20,31 +20,54 @@ export const GRACE_DAYS = 7;
 /** How close to the end we start saying so out loud. */
 export const RENEWAL_NOTICE_DAYS = 7;
 
-/** How long the free month lasts. Started automatically on first launch. */
-/** How long the free month lasts. Started automatically on first launch. */
-export const TRIAL_DAYS = 30;
+/**
+ * How long the free trial lasts, in calendar months. Started automatically on first launch.
+ *
+ * Months rather than a count of days, like every paid plan, so the trial ends on the same date of
+ * the month it began: a farmer who starts on 10 March is free through 9 September.
+ */
+export const TRIAL_MONTHS = 6;
 
-/** Bonus days added to the free trial when referred by a community agent or fellow farmer. */
-export const REFERRAL_BONUS_DAYS = 7;
+/** How the trial is described to a farmer or an agent. */
+export const TRIAL_LENGTH_LABEL = '6 months';
+
+/**
+ * Extra calendar months on the free trial for a farmer introduced by an agent, so a referred
+ * trial runs seven months in all. Counted in whole months like the trial itself, so it still ends
+ * on the same date of the month it began.
+ */
+export const REFERRAL_BONUS_MONTHS = 1;
+
+/** How the referral bonus is described to a farmer or an agent. */
+export const REFERRAL_BONUS_LABEL = '1 extra month';
 
 export type LicenseStatus =
   /** No signed licence on file. Only `readLicenseStatus` returns this; a launch falls to the trial. */
   | { state: 'unactivated' }
-  /** The free month, granted on first launch. No code, no account, no agent. */
+  /** The free trial, granted on first launch. No code, no account, no agent. */
   | { state: 'trial'; daysLeft: number }
-  /** The free month has run out and nothing has been paid. */
+  /** The free trial has run out and nothing has been paid. */
   | { state: 'trial-ended' }
   | { state: 'invalid'; reason: string }
   | { state: 'active'; payload: LicensePayload; daysLeft: number }
   | { state: 'grace'; payload: LicensePayload; graceDaysLeft: number }
   | { state: 'expired'; payload: LicensePayload };
 
+/**
+ * The last day a self-granted trial covers, inclusive.
+ *
+ * A trial started on 1 September runs through 28 February: six calendar months, less the day it
+ * started on, because that day already counted. A referral adds its bonus month, so a referred
+ * trial started on 1 September runs through 31 March.
+ */
+export function trialEndsOn(trialStartedAt: string, hasReferral = false): string {
+  const months = TRIAL_MONTHS + (hasReferral ? REFERRAL_BONUS_MONTHS : 0);
+  return addDaysYmd(addMonthsYmd(trialStartedAt, months), -1);
+}
+
 /** Where a self-granted trial stands today. */
 export function readTrialStatus(trialStartedAt: string, today: string, hasReferral = false): LicenseStatus {
-  // `exp` is the last day covered, so a trial started on the 1st runs through the 30th (or 37th if referred).
-  const daysUsed = daysBetweenYmd(trialStartedAt, today);
-  const totalTrialDays = hasReferral ? TRIAL_DAYS + REFERRAL_BONUS_DAYS : TRIAL_DAYS;
-  const daysLeft = totalTrialDays - 1 - daysUsed;
+  const daysLeft = daysBetweenYmd(today, trialEndsOn(trialStartedAt, hasReferral));
   return daysLeft >= 0 ? { state: 'trial', daysLeft } : { state: 'trial-ended' };
 }
 
@@ -78,6 +101,12 @@ export function addMonthsYmd(ymd: string, months: number): string {
   const shiftedMonth = String(shifted.getMonth() + 1).padStart(2, '0');
   const shiftedDay = String(shifted.getDate()).padStart(2, '0');
   return `${shifted.getFullYear()}-${shiftedMonth}-${shiftedDay}`;
+}
+
+/** Adds whole days to a local YYYY-MM-DD. Negative days go backwards. */
+export function addDaysYmd(ymd: string, days: number): string {
+  const [year, month, day] = ymd.split('-').map(Number);
+  return todayYmd(new Date(year, month - 1, day + days));
 }
 
 /** Whole days from one local date to another. Negative when `to` is in the past. */
@@ -136,11 +165,11 @@ export function describeStatus(status: LicenseStatus): string {
     case 'unactivated':
       return 'Not activated yet';
     case 'trial':
-      if (status.daysLeft === 0) return 'Free month ends today';
-      if (status.daysLeft === 1) return 'Free month ends tomorrow';
-      return `${status.daysLeft} days left of your free month`;
+      if (status.daysLeft === 0) return 'Free trial ends today';
+      if (status.daysLeft === 1) return 'Free trial ends tomorrow';
+      return `${status.daysLeft} days left of your free trial`;
     case 'trial-ended':
-      return 'Your free month has ended';
+      return 'Your free trial has ended';
     case 'invalid':
       return status.reason;
     case 'active':

@@ -74,6 +74,47 @@ export function getAgentEarnings(token: string, agentCode?: string): Promise<Api
   return apiRequest<{ currency: string; earnings: AgentEarning[] }>(`/agents/me/earnings${query}`, { token });
 }
 
+/** Where one of an agent's farmers is. Mirrors backend/src/pipeline.ts. */
+export type PipelineStage = 'renewal-due' | 'trial-ending' | 'trial' | 'paying' | 'trial-ended' | 'lapsed';
+
+export interface PipelineFarmer {
+  phone: string;
+  name: string;
+  joinedAt: string;
+  stage: PipelineStage;
+  /** Days until the date that matters for this stage; negative once it has passed. */
+  daysLeft: number | null;
+  trialEndsOn: string | null;
+  paidUntil: string | null;
+  plan: string | null;
+  firstPaidAt: string | null;
+  lastPaidAt: string | null;
+  earned: number;
+}
+
+export interface PipelineEvent {
+  kind: 'joined' | 'first-payment' | 'renewed';
+  at: string;
+  phone: string;
+  name: string;
+  plan?: string;
+  amount?: number;
+  earned?: number;
+}
+
+export interface AgentPipeline {
+  currency: string;
+  today: string;
+  farmers: PipelineFarmer[];
+  events: PipelineEvent[];
+}
+
+/** Every farmer the agent has, from introduction through paying, plus what changed recently. */
+export function getAgentPipeline(token: string, agentCode?: string): Promise<ApiResult<AgentPipeline>> {
+  const query = agentCode ? `?code=${encodeURIComponent(agentCode)}` : '';
+  return apiRequest<AgentPipeline>(`/agents/me/pipeline${query}`, { token });
+}
+
 /** Admin: Lists all registered agents and their metrics. */
 export function getAdminAgents(adminToken: string): Promise<ApiResult<{ agents: AdminAgent[]; currency: string }>> {
   return apiRequest<{ agents: AdminAgent[]; currency: string }>('/admin/agents', { token: adminToken });

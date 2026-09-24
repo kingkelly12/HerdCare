@@ -683,7 +683,7 @@ export const settings = sqliteTable('settings', {
   /** When the farmer last exported a backup — drives the "your records are not backed up" nudge. */
   lastBackupAt: text('last_backup_at'),
   /**
-   * The day this install's free month began, as a local YYYY-MM-DD.
+   * The day this install's free trial began, as a local YYYY-MM-DD.
    *
    * Written on first launch without asking anybody for anything. A farmer who has just installed
    * HerdCare should be logging a calving inside a minute, not reading a price list, so there is no
@@ -704,6 +704,22 @@ export const settings = sqliteTable('settings', {
   meatPricePerKg: real('meat_price_per_kg').notNull().default(0),
   /** Optional agent referral code entered during onboarding or payment (e.g. "AGT-001"). */
   agentCode: text('agent_code'),
+  /**
+   * A random id this install makes for itself the first time it tells the server which agent
+   * helped it. Lets a farmer who corrects their number or switches agent update their one entry on
+   * the agent's list rather than appearing twice. Not a secret and not an account.
+   */
+  installId: text('install_id'),
+  /** The farmer's M-Pesa number and name as they gave them when linking to an agent. */
+  farmerPhone: text('farmer_phone'),
+  farmerName: text('farmer_name'),
+  /**
+   * When the agent link last reached the server. Null while it still needs sending, which is how
+   * a farmer who entered the code with no signal still turns up on their agent's list later.
+   */
+  referralSyncedAt: text('referral_synced_at'),
+  /** The agent's name, as the server confirmed it, so the farmer can see who they are linked to. */
+  referralAgentName: text('referral_agent_name'),
   currency: text('currency').notNull().default('KES'),
   createdAt: text('created_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
   updatedAt: text('updated_at').notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),

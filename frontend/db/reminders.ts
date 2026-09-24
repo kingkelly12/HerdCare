@@ -85,44 +85,99 @@ export async function rebuildDerivedReminders(): Promise<void> {
     notes: reminder.notes,
   }));
 
+  const implied = [...fresh, ...poultry, ...hatching].map((reminder) => ({
+    ...reminder,
+    animalId: 'animalId' in reminder ? reminder.animalId : null,
+    flockId: 'flockId' in reminder ? reminder.flockId : null,
+    hatchBatchId: 'hatchBatchId' in reminder ? reminder.hatchBatchId : null,
+  }));
+
+  // Every derived reminder on file, whatever its status. A reminder the farmer already ticked off
+  // still owns its (source, event, type) key, so it must be updated in place, never re-inserted.
+  const onFile = await db
+    .select({
+      id: reminders.id,
+      sourceTable: reminders.sourceTable,
+      sourceEventId: reminders.sourceEventId,
+      type: reminders.type,
+      status: reminders.status,
+      animalId: reminders.animalId,
+      flockId: reminders.flockId,
+      hatchBatchId: reminders.hatchBatchId,
+      title: reminders.title,
+      dueDate: reminders.dueDate,
+      leadDays: reminders.leadDays,
+    })
+    .from(reminders)
+    .where(isNotNull(reminders.sourceEventId));
+
+  const keyOf = (row: { sourceTable: string | null; sourceEventId: string | null; type: string }) =>
+    `${row.sourceTable}|${row.sourceEventId}|${row.type}`;
+  const byKey = new Map(onFile.map((row) => [keyOf(row), row]));
+
+  // Only rows that are new or have actually changed get written. Most launches change nothing at
+  // all, and writing anyway was not free: every write re-ran each live query on screen, so a farm
+  // with a few hundred reminders re-queried and re-drew the dashboard a few hundred times at launch.
+  const inserts: typeof implied = [];
+  const updates: { id: string; reminder: (typeof implied)[number] }[] = [];
+
+  // Last one wins if the projection ever implies the same key twice, which is what the old
+  // upsert-per-row did; inserting both would break the unique index and abort the whole rebuild.
+  const latestByKey = new Map(implied.map((reminder) => [keyOf(reminder), reminder]));
+
+  for (const reminder of latestByKey.values()) {
+    const existing = byKey.get(keyOf(reminder));
+    if (!existing) {
+      inserts.push(reminder);
+      continue;
+    }
+    const changed =
+      existing.animalId !== reminder.animalId ||
+      existing.flockId !== reminder.flockId ||
+      existing.hatchBatchId !== reminder.hatchBatchId ||
+      existing.title !== reminder.title ||
+      existing.dueDate !== reminder.dueDate ||
+      existing.leadDays !== reminder.leadDays;
+    if (changed) updates.push({ id: existing.id, reminder });
+  }
+
+  // Drop pending derived reminders whose source no longer implies them.
+  const keep = new Set(implied.map(keyOf));
+  const derivedTypes = new Set<string>(DERIVED_REMINDER_TYPES);
+  const stale = onFile
+    .filter((row) => row.status === 'pending' && derivedTypes.has(row.type) && !keep.has(keyOf(row)))
+    .map((row) => row.id);
+
+  if (inserts.length === 0 && updates.length === 0 && stale.length === 0) return;
+
   const now = new Date().toISOString();
 
-  for (const reminder of [...fresh, ...poultry, ...hatching]) {
-    await db
-      .insert(reminders)
-      .values({ ...reminder, status: 'pending' })
-      .onConflictDoUpdate({
-        target: [reminders.sourceTable, reminders.sourceEventId, reminders.type],
-        // Status is deliberately absent: a reminder the farmer already ticked off must not
-        // spring back to pending just because the projection was recomputed.
-        set: {
-          animalId: 'animalId' in reminder ? reminder.animalId : null,
-          flockId: 'flockId' in reminder ? reminder.flockId : null,
-          hatchBatchId: 'hatchBatchId' in reminder ? reminder.hatchBatchId : null,
+  // One transaction: one disk flush instead of one per row, and the rest of the app never sees
+  // the reminders half-rebuilt.
+  db.transaction((tx) => {
+    for (const reminder of inserts) {
+      // Status is only ever set on the way in. A reminder the farmer already ticked off must not
+      // spring back to pending just because the projection was recomputed.
+      tx.insert(reminders).values({ ...reminder, status: 'pending' }).run();
+    }
+    for (const { id, reminder } of updates) {
+      tx.update(reminders)
+        .set({
+          animalId: reminder.animalId,
+          flockId: reminder.flockId,
+          hatchBatchId: reminder.hatchBatchId,
           title: reminder.title,
           dueDate: reminder.dueDate,
           leadDays: reminder.leadDays,
           updatedAt: now,
-        },
-      });
-  }
-
-  // Drop pending derived reminders whose source no longer implies them.
-  const keep = new Set(
-    [...fresh, ...poultry, ...hatching].map((r) => `${r.sourceTable}|${r.sourceEventId}|${r.type}`),
-  );
-  const existing = await db
-    .select({ id: reminders.id, sourceTable: reminders.sourceTable, sourceEventId: reminders.sourceEventId, type: reminders.type })
-    .from(reminders)
-    .where(and(eq(reminders.status, 'pending'), inArray(reminders.type, [...DERIVED_REMINDER_TYPES])));
-
-  const stale = existing
-    .filter((row) => !keep.has(`${row.sourceTable}|${row.sourceEventId}|${row.type}`))
-    .map((row) => row.id);
-
-  if (stale.length > 0) {
-    await db.delete(reminders).where(inArray(reminders.id, stale));
-  }
+        })
+        .where(eq(reminders.id, id))
+        .run();
+    }
+    if (stale.length > 0) {
+      tx.delete(reminders).where(inArray(reminders.id, stale)).run();
+    }
+  });
 }
 
 /** Makes sure every active routine schedule has exactly one pending reminder outstanding. */
