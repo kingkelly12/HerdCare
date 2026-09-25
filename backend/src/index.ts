@@ -5,7 +5,7 @@ import { PLAN_PRICES, PRICE_CURRENCY, isPlan, todayInNairobi } from './plans';
 import { applyPayment, describeFarm, issueToken } from './subscription';
 import { randomOtp, randomToken, secretsMatch, sha256Hex } from './crypto';
 import { sendRenewalNotices } from './reminders';
-import { mayRecoverFarm } from './authz';
+import { mayRecoverPhone } from './authz';
 import { DEFAULT_ACTIVATION_BOUNTY, DEFAULT_COMMISSION_RATE } from './commission';
 import { getPaymentProvider } from './payments';
 import { auth } from './routes/auth';
@@ -13,6 +13,7 @@ import { backup } from './routes/backup';
 import { pay } from './routes/pay';
 import { agents } from './routes/agents';
 import { referrals } from './routes/referrals';
+import { sync } from './routes/sync';
 
 /** Set by `requireAdminOrAgent`, so a handler knows whether it may act beyond one agent's farms. */
 type CallerVariables = { isAdmin: boolean; agentCode: string | null };
@@ -72,6 +73,7 @@ app.route('/backup', backup);
 app.route('/pay', pay);
 app.route('/agents', agents);
 app.route('/referrals', referrals);
+app.route('/sync', sync);
 
 /**
  * Activates a farm, or renews one that already exists.
@@ -307,15 +309,24 @@ app.post('/admin/recover', requireAdminOrAgent, async (c) => {
   // could pull any farmer's records by knowing their phone number. The same 404 is returned whether
   // the farm does not exist or belongs to somebody else, so this cannot be used to discover which
   // numbers are customers.
+  // Farmers still on their free trial have no farm row, only automatic backups, so the agent their
+  // own phone names in those backups counts as theirs too.
+  const { results: installRows } = await c.env.DB.prepare(
+    'SELECT i.agent_code FROM installs i JOIN install_backups b ON b.install_id = i.id WHERE i.phone = ?',
+  )
+    .bind(phone)
+    .all<{ agent_code: string | null }>();
+
   if (
-    !farm ||
-    !mayRecoverFarm({
+    (!farm && (installRows ?? []).length === 0) ||
+    !mayRecoverPhone({
       isAdmin: c.get('isAdmin'),
       callerAgentCode: c.get('agentCode'),
-      farmAgentCode: farm.agent_code,
+      farmAgentCode: farm?.agent_code ?? null,
+      installAgentCodes: (installRows ?? []).map((row) => row.agent_code),
     })
   ) {
-    return c.json({ error: 'No subscription found for this number among your farmers.' }, 404);
+    return c.json({ error: 'No farmer with that number among yours.' }, 404);
   }
 
   const code = randomOtp();
@@ -330,14 +341,14 @@ app.post('/admin/recover', requireAdminOrAgent, async (c) => {
     .run();
 
   await c.env.DB.prepare('INSERT INTO recovery_log (id, farm_id, phone, outcome, device_id) VALUES (?, ?, ?, ?, ?)')
-    .bind(crypto.randomUUID(), farm.id, phone, 'agent-issued', null)
+    .bind(crypto.randomUUID(), farm?.id ?? null, phone, 'agent-issued', null)
     .run();
 
   return c.json({
     code,
     expiresInMinutes: 30,
-    farm: { phone: farm.phone, name: farm.name },
-    instructions: `Read this code to ${farm.name || 'the farmer'}. On their phone: Settings, then This phone, enter ${phone}, then the code.`,
+    farm: { phone, name: farm?.name ?? '' },
+    instructions: `Read this code to ${farm?.name || 'the farmer'}. On their phone: Settings, then This phone, enter ${phone}, then the code.`,
   });
 });
 

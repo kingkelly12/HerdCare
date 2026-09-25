@@ -6,20 +6,21 @@
  */
 
 /**
- * Whether a caller may issue a recovery code for a farm.
+ * Whether a caller may issue a recovery code for a phone number.
  *
- * A recovery code unlocks that farm's whole backup: herd, customers and money. An admin may issue
- * one for anybody. An agent only for farms they signed, or anyone able to register as an agent could
- * read any farmer's records by knowing their phone number.
+ * Covers farmers who have not paid yet, who have a backup but no row in `farms`. For those, the
+ * agent has to be the one the farmer's own phone names in its backups (`installs.agent_code`). A
+ * referral is not enough: anybody can file one for any number, and a recovery code opens that
+ * farmer's records.
  */
-export function mayRecoverFarm(args: {
+export function mayRecoverPhone(args: {
   isAdmin: boolean;
   callerAgentCode: string | null;
   farmAgentCode: string | null;
+  installAgentCodes: (string | null)[];
 }): boolean {
   if (args.isAdmin) return true;
   if (!args.callerAgentCode) return false;
-  // A farm nobody signed is not an agent's to recover.
-  if (!args.farmAgentCode) return false;
-  return args.farmAgentCode === args.callerAgentCode;
+  if (args.farmAgentCode) return args.farmAgentCode === args.callerAgentCode;
+  return args.installAgentCodes.some((code) => code === args.callerAgentCode);
 }

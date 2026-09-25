@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -7,134 +7,95 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Surface } from '@/components/ui/Surface';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
+import { Callout } from '@/components/ui/Callout';
 import { useColors } from '@/theme/colors';
 import { isCloudConfigured } from '@/lib/api/client';
 import { requestSignInCode, verifySignInCode } from '@/lib/api/account';
 import { downloadBackup } from '@/lib/api/cloudBackup';
-import { getCloudAccount, clearCloudAccount } from '@/db/cloudAccount';
+import { restoreFromInstall } from '@/lib/cloudSync';
+import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 import { useLicense } from '@/components/license/LicenseProvider';
 import { formatDateForDisplay } from '@/utils/livestockRules';
 import { notifySaved } from '@/lib/haptics';
-import type { CloudAccount } from '@/db/schema';
+import type { RestoreSummary } from '@/lib/backup';
+
+function countAdded(summary: RestoreSummary): number {
+  return Object.values(summary.added ?? {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
+}
 
 /**
- * Signing in with an M-Pesa number, and putting a farmer back on a replacement phone.
+ * Getting a farmer's records back onto a new phone.
  *
- * No password, because the number is the identity and a password is one more thing to lose. A
- * farmer who has ever confirmed an M-Pesa payment has already done this exact flow.
+ * Backing up needs nothing from the farmer: it happens on its own (see lib/cloudSync.ts). This is
+ * the one moment that needs proof, because it hands somebody's whole farm to the phone in front of
+ * us. The proof is a code sent by SMS to the old number, or read out by the farmer's agent.
  */
 export default function AccountScreen() {
   const colors = useColors();
   const { refresh: refreshLicence } = useLicense();
 
-  const [account, setAccount] = useState<CloudAccount | null>(null);
-  const [loaded, setLoaded] = useState(false);
-
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
-  const [stage, setStage] = useState<'phone' | 'code'>('phone');
+  const [stage, setStage] = useState<'phone' | 'code' | 'done'>('phone');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-
-  useEffect(() => {
-    getCloudAccount()
-      .then((row) => {
-        setAccount(row);
-        if (row) setPhone(row.phone);
-      })
-      .catch(() => {})
-      .finally(() => setLoaded(true));
-  }, []);
+  const [result, setResult] = useState<string | null>(null);
 
   async function handleRequestCode() {
     setBusy(true);
     setError(null);
     setNote(null);
-
-    const result = await requestSignInCode(phone.trim());
+    const response = await requestSignInCode(phone.trim());
     setBusy(false);
 
-    if (!result.ok) {
-      setError(result.error);
+    if (!response.ok) {
+      // With SMS switched off the server says so; the agent route below still works.
+      setError(response.error);
       return;
     }
-
     setStage('code');
-    // A development server with no SMS account hands the code back so the flow can be walked
-    // through end to end. A production server never does this.
-    setNote(result.data.devCode ? `Development code: ${result.data.devCode}` : result.data.message);
+    setNote(response.data.devCode ? `Development code: ${response.data.devCode}` : response.data.message);
   }
 
   async function handleVerify() {
     setBusy(true);
     setError(null);
 
-    const result = await verifySignInCode(phone.trim(), code.trim());
-    setBusy(false);
-
-    if (!result.ok) {
-      setError(result.error);
+    const verified = await verifySignInCode(phone.trim(), code.trim());
+    if (!verified.ok) {
+      setBusy(false);
+      setError(verified.error);
       return;
     }
 
-    notifySaved();
-    setAccount(await getCloudAccount());
-    // The licence came down with the sign-in, so the write lock lifts without another round trip.
+    // A subscription, if there was one, came down with the sign-in.
     await refreshLicence();
 
-    const { backup } = result.data;
-    if (!backup.available) {
-      setStage('phone');
-      setCode('');
-      Alert.alert('Signed in', 'This phone is now linked. Back up your records from Settings.');
-      return;
+    const { install, backup, farm } = verified.data;
+    let message: string;
+
+    if (install) {
+      const restored = await restoreFromInstall(install);
+      message = restored.ok
+        ? `${countAdded(restored.summary)} records brought back, saved ${formatDateForDisplay(install.savedAt)}. This phone now backs up in their place.`
+        : `Found your records, but could not bring them onto this phone: ${restored.error}`;
+    } else if (backup.available) {
+      const restored = await downloadBackup();
+      message = restored.ok
+        ? `${countAdded(restored.data)} records brought back, saved ${formatDateForDisplay(backup.savedAt ?? null)}.`
+        : `Found your records, but could not bring them onto this phone: ${restored.error}`;
+    } else {
+      message = farm
+        ? 'Your subscription is back on this phone. There was no saved copy of your records.'
+        : 'There was no saved copy of your records for that number.';
     }
 
-    Alert.alert(
-      'Records found',
-      `A backup from ${formatDateForDisplay(backup.savedAt ?? null)} is waiting, with ${backup.records ?? 0} records. Bring it onto this phone?`,
-      [
-        { text: 'Not now', style: 'cancel', onPress: () => setStage('phone') },
-        { text: 'Restore', onPress: handleRestore },
-      ],
-    );
-  }
-
-  async function handleRestore() {
-    setBusy(true);
-    const result = await downloadBackup();
+    await refreshRemindersAndNotifications().catch(() => {});
     setBusy(false);
-    setStage('phone');
-    setCode('');
-
-    if (!result.ok) {
-      Alert.alert('Could not restore', result.error);
-      return;
-    }
-
-    const added = Object.values(result.data.added ?? {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
     notifySaved();
-    Alert.alert('Records restored', `${added} record${added === 1 ? '' : 's'} brought onto this phone.`);
-  }
-
-  function confirmSignOut() {
-    Alert.alert(
-      'Sign out of this phone?',
-      'Your records stay exactly where they are. You will need a new 6-digit code from your agent before you can back up or restore again.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign out',
-          style: 'destructive',
-          onPress: async () => {
-            await clearCloudAccount();
-            setAccount(null);
-            setStage('phone');
-          },
-        },
-      ],
-    );
+    setResult(message);
+    setStage('done');
   }
 
   if (!isCloudConfigured()) {
@@ -142,10 +103,9 @@ export default function AccountScreen() {
       <ScreenContainer>
         <Animated.View entering={FadeInDown.duration(280)} className="items-center gap-2 pt-8">
           <Ionicons name="cloud-offline-outline" size={40} color={colors.tertiary} />
-          <Text className="text-headline font-sans-semibold text-primary">Not available yet</Text>
+          <Text className="text-headline font-sans-semibold text-primary">Not available in this version</Text>
           <Text className="px-4 text-center text-callout text-secondary">
-            Online backup is not switched on in this version of HerdCare. Your records are safe on
-            this phone, and you can still export them from Settings.
+            Your records are safe on this phone, and you can still save a backup file from Settings.
           </Text>
         </Animated.View>
       </ScreenContainer>
@@ -155,44 +115,23 @@ export default function AccountScreen() {
   return (
     <ScreenContainer>
       <Animated.View entering={FadeInDown.duration(280)} className="items-center gap-2 pt-4">
-        <View
-          className={`h-16 w-16 items-center justify-center rounded-pill ${account ? 'bg-brand-soft' : 'bg-earth-soft'}`}
-        >
-          <Ionicons
-            name={account ? 'cloud-done' : 'cloud-upload-outline'}
-            size={30}
-            color={account ? colors.brand : colors.earth}
-          />
+        <View className="h-16 w-16 items-center justify-center rounded-pill bg-brand-soft">
+          <Ionicons name={stage === 'done' ? 'checkmark-circle' : 'phone-portrait-outline'} size={30} color={colors.brand} />
         </View>
-        <Text className="text-title font-sans-bold text-primary">
-          {account ? 'Phone linked' : 'Link this phone'}
+        <Text className="text-center text-title font-sans-bold text-primary">
+          {stage === 'done' ? 'Done' : 'Get your records back'}
         </Text>
         <Text className="px-2 text-center text-callout text-secondary">
-          {account
-            ? 'Your records can be backed up, and brought back if this phone is ever lost.'
-            : 'Use your M-Pesa number. Your HerdCare agent gives you a 6-digit code to enter here.'}
+          {stage === 'done'
+            ? result
+            : 'For a new or replacement phone. Enter the M-Pesa number you gave HerdCare on your old phone, then the 6-digit code sent to it or given to you by your agent.'}
         </Text>
       </Animated.View>
 
-      {loaded && account ? (
-        <Animated.View entering={FadeInDown.duration(280).delay(60)}>
-          <Surface level="raised" className="gap-3 p-4">
-            <View className="flex-row items-center justify-between">
-              <Text className="text-callout text-tertiary">Number</Text>
-              <Text className="text-callout font-sans-medium text-primary">{account.phone}</Text>
-            </View>
-            <View className="flex-row items-center justify-between border-t border-line pt-3">
-              <Text className="text-callout text-tertiary">Last backup</Text>
-              <Text className="text-callout font-sans-medium text-primary">
-                {account.lastBackupAt ? formatDateForDisplay(account.lastBackupAt) : 'Never'}
-              </Text>
-            </View>
-          </Surface>
-        </Animated.View>
-      ) : null}
-
-      {stage === 'phone' ? (
-        <>
+      {stage === 'done' ? (
+        <Button label="Go to my farm" fullWidth onPress={() => router.replace('/' as any)} />
+      ) : stage === 'phone' ? (
+        <Surface level="raised" className="gap-3 p-4">
           <TextField
             label="M-Pesa number"
             value={phone}
@@ -201,19 +140,12 @@ export default function AccountScreen() {
               setError(null);
             }}
             keyboardType="phone-pad"
-            placeholder="0712345678"
+            placeholder="0712 345 678"
             error={error ?? undefined}
-            hint="The number you use for M-Pesa. This is for online backup, not your subscription."
           />
+          <Button label="Send me a code" fullWidth loading={busy} disabled={phone.trim().length < 9} onPress={handleRequestCode} />
           <Button
-            label={account ? 'Send a new code' : 'Send me a code'}
-            fullWidth
-            loading={busy}
-            disabled={phone.trim().length < 9}
-            onPress={handleRequestCode}
-          />
-          <Button
-            label="I already have a code"
+            label="My agent gave me a code"
             variant="secondary"
             fullWidth
             disabled={phone.trim().length < 9}
@@ -223,11 +155,11 @@ export default function AccountScreen() {
               setStage('code');
             }}
           />
-        </>
+        </Surface>
       ) : (
-        <>
+        <Surface level="raised" className="gap-3 p-4">
           <TextField
-            label="6-digit sign-in code"
+            label="6-digit code"
             value={code}
             onChangeText={(next) => {
               setCode(next);
@@ -239,7 +171,7 @@ export default function AccountScreen() {
             error={error ?? undefined}
             hint={note ?? undefined}
           />
-          <Button label="Continue" fullWidth loading={busy} disabled={code.trim().length < 6} onPress={handleVerify} />
+          <Button label="Bring my records back" fullWidth loading={busy} disabled={code.trim().length < 6} onPress={handleVerify} />
           <Button
             label="Use a different number"
             variant="ghost"
@@ -250,26 +182,14 @@ export default function AccountScreen() {
               setError(null);
             }}
           />
-        </>
+        </Surface>
       )}
 
-      {account ? (
-        <>
-          <Button
-            label="Bring my records onto this phone"
-            variant="secondary"
-            fullWidth
-            loading={busy}
-            onPress={handleRestore}
-          />
-          <Button label="Sign out of this phone" variant="ghost" fullWidth onPress={confirmSignOut} />
-        </>
+      {stage !== 'done' ? (
+        <Callout tone="brand">
+          Records on this phone are kept. Anything missing is added; nothing is overwritten.
+        </Callout>
       ) : null}
-
-      <Text className="pb-4 text-center text-label text-tertiary">
-        HerdCare works with no internet at all. Linking your phone only adds a backup and a way to
-        move to a new phone.
-      </Text>
     </ScreenContainer>
   );
 }

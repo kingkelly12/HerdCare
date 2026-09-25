@@ -128,13 +128,17 @@ auth.post('/verify', async (c) => {
     .run();
 
   const farm = await c.env.DB.prepare('SELECT * FROM farms WHERE phone = ?').bind(phone).first<FarmRow>();
+  const install = await moveInstallBackup(c.env, phone);
+
+  if (!farm && !install) {
+    await logRecovery(c.env, null, phone, 'no-account', null);
+    return c.json({ error: 'Nothing has been backed up for that number yet.' }, 404);
+  }
 
   if (!farm) {
-    await logRecovery(c.env, null, phone, 'no-account', null);
-    return c.json(
-      { error: 'That number has no HerdCare subscription yet. Ask your agent to set one up.' },
-      404,
-    );
+    // A farmer still on their free trial: no subscription to restore, only their records.
+    await logRecovery(c.env, null, phone, 'recovered-install', null);
+    return c.json({ deviceToken: null, token: null, farm: null, backup: { available: false }, install });
   }
 
   // A recovery means the farmer is on a different handset. Old device tokens are revoked so a
@@ -172,8 +176,35 @@ auth.post('/verify', async (c) => {
     backup: backup
       ? { available: true, sizeBytes: backup.size_bytes, records: backup.record_count, savedAt: backup.updated_at }
       : { available: false },
+    install,
   });
 });
+
+/**
+ * Hands the newest automatic backup reported under this number to the phone that has just proved
+ * it holds the number.
+ *
+ * The install's key is replaced, so the new phone now owns that backup and carries on saving to
+ * it, and the lost or sold phone can no longer overwrite it with stale records. Same reasoning as
+ * revoking old device tokens above.
+ */
+async function moveInstallBackup(env: Env, phone: string) {
+  const found = await env.DB.prepare(
+    `SELECT i.id, b.size_bytes, b.record_count, b.updated_at
+     FROM installs i JOIN install_backups b ON b.install_id = i.id
+     WHERE i.phone = ? ORDER BY b.updated_at DESC LIMIT 1`,
+  )
+    .bind(phone)
+    .first<{ id: string; size_bytes: number; record_count: number; updated_at: string }>();
+  if (!found) return null;
+
+  const key = randomToken();
+  await env.DB.prepare('UPDATE installs SET key_hash = ?, last_seen_at = ? WHERE id = ?')
+    .bind(await sha256Hex(key), new Date().toISOString(), found.id)
+    .run();
+
+  return { id: found.id, key, sizeBytes: found.size_bytes, records: found.record_count, savedAt: found.updated_at };
+}
 
 async function logRecovery(
   env: Env,

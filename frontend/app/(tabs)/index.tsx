@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Fab } from '@/components/ui/Fab';
 import { db } from '@/db/client';
 import { refreshReminderData } from '@/lib/reminderSync';
-import { animals, birthRecords, breedingEvents, healthLogs, reminders, settings } from '@/db/schema';
+import { animals, birthRecords, breedingEvents, cloudInstall, healthLogs, reminders, settings } from '@/db/schema';
 import { SpeciesAvatar } from '@/components/animals/SpeciesIcon';
 import { useLicense } from '@/components/license/LicenseProvider';
 import { RENEWAL_NOTICE_DAYS } from '@/lib/license/status';
@@ -97,6 +97,8 @@ export default function HomeScreen() {
   // `active` also contradicted the withdrawal figure below, which uses this same filter: a single
   // animal under withdrawal would read "0 in the herd, 1 in withdrawal". Sold and deceased
   // animals are the ones that have genuinely left.
+  const { data: cloudRows } = useLiveQuery(db.select({ lastSyncedAt: cloudInstall.lastSyncedAt }).from(cloudInstall));
+
   const { data: herdAnimals } = useLiveQuery(
     db.select().from(animals).where(notInArray(animals.status, ['sold', 'deceased'])),
   );
@@ -196,7 +198,14 @@ export default function HomeScreen() {
   // See the note by `refreshing` above — only trust an empty list once a rebuild has actually
   // completed against it, not merely because nothing had loaded yet.
   const attentionResolving = (!dueNowUpdatedAt || refreshing) && attention.length === 0;
-  const daysSinceBackup = prefs?.lastBackupAt ? Math.abs(daysFromToday(prefs.lastBackupAt) ?? 0) : null;
+  // Backed up means either copy counts: the automatic online one, or a file the farmer saved. The
+  // warning is only for a farm that has had neither for a month, usually a phone that has not had
+  // internet since the records were entered.
+  const lastCopyAt = [prefs?.lastBackupAt, cloudRows?.[0]?.lastSyncedAt]
+    .filter((at): at is string => Boolean(at))
+    .sort()
+    .pop();
+  const daysSinceBackup = lastCopyAt ? Math.abs(daysFromToday(lastCopyAt) ?? 0) : null;
   const backupStale = (herdAnimals?.length ?? 0) > 0 && (daysSinceBackup === null || daysSinceBackup >= 30);
 
   return (
@@ -336,10 +345,11 @@ export default function HomeScreen() {
             </View>
             <View className="flex-1">
               <Text className="text-body font-sans-semibold text-primary">
-                {prefs?.lastBackupAt ? 'Your backup is out of date' : 'Your records are not backed up'}
+                {lastCopyAt ? 'Your backup is out of date' : 'Your records are not backed up yet'}
               </Text>
               <Text className="text-label text-tertiary">
-                They exist only on this phone. Tap to save a copy you can keep elsewhere.
+                They save online on their own when this phone has internet. Until then, tap to save a
+                backup file.
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={colors.tertiary} />

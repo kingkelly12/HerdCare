@@ -5,7 +5,16 @@ import { Surface } from '@/components/ui/Surface';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { useColors } from '@/theme/colors';
-import { BackupFormatError, exportJsonBackup, exportPdfReport, pickBackupFile, restoreBackup, type RestoreSummary } from '@/lib/backup';
+import {
+  BackupFormatError,
+  exportJsonBackup,
+  exportPdfReport,
+  pickBackupFile,
+  restoreBackup,
+  shareFile,
+  type ExportResult,
+  type RestoreSummary,
+} from '@/lib/backup';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 import { notifySaved } from '@/lib/haptics';
 import { daysFromToday, formatDateForDisplay } from '@/utils/livestockRules';
@@ -34,40 +43,40 @@ export function BackupSection({ lastBackupAt, hasRecords }: { lastBackupAt: stri
   const daysSince = lastBackupAt ? Math.abs(daysFromToday(lastBackupAt) ?? 0) : null;
   const stale = hasRecords && (daysSince === null || daysSince >= 30);
 
-  async function handleExportPdf() {
-    setBusy('pdf');
+  /**
+   * Makes the file, stops the spinner, then opens the share window. The spinner covers only the
+   * part that is actually work; what the farmer does in the share window takes as long as it takes.
+   */
+  async function makeAndShare(kind: 'pdf' | 'json', make: () => Promise<ExportResult>, done: string) {
+    setBusy(kind);
     setMessage(null);
+    let file: ExportResult;
     try {
-      const result = await exportPdfReport();
-      notifySaved();
-      setMessage(
-        result.shared
-          ? 'Report created. Send it to yourself on WhatsApp, Drive or email so it survives this phone.'
-          : `Report saved as ${result.fileName}.`,
-      );
+      file = await make();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'Could not create the report.');
-    } finally {
       setBusy(null);
+      setMessage(e instanceof Error ? e.message : 'Could not make the file. Try again.');
+      return;
     }
+    setBusy(null);
+    notifySaved();
+    setMessage(done);
+    shareFile(file).catch((e) => {
+      const text = e instanceof Error ? e.message : '';
+      setMessage(
+        /another share/i.test(text)
+          ? 'A sharing window is still open. Close it, then try again.'
+          : `Saved as ${file.fileName}, but the sharing window did not open.`,
+      );
+    });
   }
 
-  async function handleExportJson() {
-    setBusy('json');
-    setMessage(null);
-    try {
-      const result = await exportJsonBackup();
-      notifySaved();
-      setMessage(
-        result.shared
-          ? 'Technical backup created. Keep this one too — it is what Restore reads.'
-          : `Technical backup saved as ${result.fileName}.`,
-      );
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'Could not create the technical backup.');
-    } finally {
-      setBusy(null);
-    }
+  function handleExportPdf() {
+    makeAndShare('pdf', exportPdfReport, 'Report ready. Send it to yourself on WhatsApp, Drive or email so it survives this phone.');
+  }
+
+  function handleExportJson() {
+    makeAndShare('json', exportJsonBackup, 'Technical backup ready. Keep this one too, because it is the file Restore reads.');
   }
 
   async function handleRestore() {
@@ -111,23 +120,23 @@ export function BackupSection({ lastBackupAt, hasRecords }: { lastBackupAt: stri
 
   return (
     <View className="gap-2">
-      <Text className="px-1 text-label font-sans-semibold uppercase text-tertiary">Backup</Text>
+      <Text className="px-1 text-label font-sans-semibold uppercase text-tertiary">Backup files</Text>
 
       <Surface level="raised" className="gap-3 p-4">
         <View className="flex-row items-start gap-3">
           <Ionicons name="save-outline" size={20} color={colors.secondary} />
           <View className="flex-1">
-            <Text className="text-body font-sans-medium text-primary">Your records live only on this phone</Text>
+            <Text className="text-body font-sans-medium text-primary">A copy you keep yourself</Text>
             <Text className="text-label text-tertiary">
-              Clearing app storage, losing the phone or replacing it would take them with it. A backup is a file you
-              keep somewhere else.
+              A file you save to WhatsApp, Drive or a memory card. Useful alongside online backup, and it works
+              with no internet at all.
             </Text>
           </View>
         </View>
 
         {stale ? (
           <Callout tone="warn">
-            {daysSince === null ? 'You have never backed up your records.' : `Last backup was ${daysSince} days ago.`}
+            {daysSince === null ? 'You have not saved a backup file yet.' : `Last backup file was ${daysSince} days ago.`}
           </Callout>
         ) : lastBackupAt ? (
           <Text className="text-label text-tertiary">
@@ -136,17 +145,26 @@ export function BackupSection({ lastBackupAt, hasRecords }: { lastBackupAt: stri
           </Text>
         ) : null}
 
-        <Button
-          label="Back up my records"
-          fullWidth
-          loading={busy === 'pdf'}
-          disabled={busy !== null}
-          onPress={handleExportPdf}
-          icon={<Ionicons name="share-outline" size={20} color={colors.onBrand} />}
-        />
-        <Text className="text-label text-tertiary">
-          A readable report — every animal and its recent events. Good for sharing with a vet or buyer.
-        </Text>
+        {hasRecords ? (
+          <>
+            <Button
+              label="Back up my records"
+              fullWidth
+              loading={busy === 'pdf'}
+              disabled={busy !== null}
+              onPress={handleExportPdf}
+              icon={<Ionicons name="share-outline" size={20} color={colors.onBrand} />}
+            />
+            <Text className="text-label text-tertiary">
+              A readable report of every animal and its recent events. Good for sharing with a vet or buyer.
+            </Text>
+          </>
+        ) : (
+          <Text className="text-callout text-secondary">
+            Nothing to back up yet. Once you add your first animal or flock, this makes a report you can
+            send to WhatsApp, Drive or email.
+          </Text>
+        )}
       </Surface>
 
       <Surface level="raised" className="gap-3 p-4">
@@ -166,7 +184,7 @@ export function BackupSection({ lastBackupAt, hasRecords }: { lastBackupAt: stri
           variant="secondary"
           fullWidth
           loading={busy === 'json'}
-          disabled={busy !== null}
+          disabled={busy !== null || !hasRecords}
           onPress={handleExportJson}
         />
         <Button

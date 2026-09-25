@@ -23,11 +23,15 @@ export function requestSignInCode(phone: string): Promise<ApiResult<RequestCodeR
 }
 
 export interface VerifyResponse {
-  deviceToken: string;
+  /** Null for a farmer who has never paid: they have records to bring back, but no subscription. */
+  deviceToken: string | null;
   /** The farm's activation code, sent with the sign-in so a new phone unlocks in one round trip. */
-  token: string;
-  farm: { phone: string; name: string; plan: string; expiresAt: string; today: string };
+  token: string | null;
+  farm: { phone: string; name: string; plan: string; expiresAt: string; today: string } | null;
+  /** The older, signed-in backup, kept for farmers who used it before automatic backup. */
   backup: { available: boolean; sizeBytes?: number; records?: number; savedAt?: string };
+  /** The automatic backup found under this number, now handed to this phone. */
+  install?: { id: string; key: string; sizeBytes: number; records: number; savedAt: string } | null;
 }
 
 /**
@@ -47,7 +51,9 @@ export async function verifySignInCode(
 
   if (!result.ok) return result;
 
-  await saveCloudAccount(result.data.farm.phone, result.data.deviceToken);
+  if (result.data.farm && result.data.deviceToken) {
+    await saveCloudAccount(result.data.farm.phone, result.data.deviceToken);
+  }
 
   // The licence arrives with the sign-in, so the app unlocks without a second round trip. A
   // failure here is not fatal: the farmer is signed in and can still restore their records, and

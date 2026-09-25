@@ -642,6 +642,25 @@ export const cloudAccount = sqliteTable('cloud_account', {
 });
 
 /**
+ * This install's automatic online backup. Single row, id is always 'default'.
+ *
+ * The id and key are made by the phone itself the first time it backs up, so backing up needs no
+ * account and no phone number. Deliberately left out of backup files (see lib/backup.ts), like
+ * `cloud_account` and `licenses`: a file handed to somebody else must not let them overwrite, or
+ * read, this farm's online copy.
+ */
+export const cloudInstall = sqliteTable('cloud_install', {
+  id: text('id').primaryKey().default('default'),
+  installId: text('install_id').notNull(),
+  /** The secret the server knows only as a hash. Whoever holds it can read and replace the backup. */
+  installKey: text('install_key').notNull(),
+  lastSyncedAt: text('last_synced_at'),
+  lastSyncedBytes: integer('last_synced_bytes'),
+  /** Fingerprint of what was last sent, so an unchanged farm is not uploaded again. */
+  lastSyncedHash: text('last_synced_hash'),
+});
+
+/**
  * The activation this device is running under. Single row, id is always 'default'.
  *
  * Only the signed token is stored, never a decoded "is the subscription valid" flag: every launch
@@ -838,3 +857,4 @@ export type Settings = typeof settings.$inferSelect;
 export type License = typeof licenses.$inferSelect;
 export type NewLicense = typeof licenses.$inferInsert;
 export type CloudAccount = typeof cloudAccount.$inferSelect;
+export type CloudInstall = typeof cloudInstall.$inferSelect;

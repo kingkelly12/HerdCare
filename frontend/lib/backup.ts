@@ -177,17 +177,44 @@ export interface ExportResult {
   fileName: string;
   uri: string;
   counts: Record<string, number>;
-  shared: boolean;
-}
-
-async function shareFile(uri: string, fileName: string, mimeType: string, dialogTitle: string): Promise<boolean> {
-  if (!(await Sharing.isAvailableAsync())) return false;
-  await Sharing.shareAsync(uri, { mimeType, dialogTitle, UTI: mimeType === 'application/pdf' ? 'com.adobe.pdf' : 'public.json' });
-  return true;
+  mimeType: string;
 }
 
 /**
- * Renders the records as a PDF report and hands it to the OS share sheet — this is the default,
+ * Opens the phone's share window for a finished file.
+ *
+ * Callers must not keep a spinner running on this. On Android the promise only settles when the
+ * share window reports back, and many phones never report back once the farmer has picked WhatsApp
+ * or Drive, so waiting on it is what used to leave "Back up my records" loading forever.
+ */
+export async function shareFile(file: ExportResult): Promise<void> {
+  if (!(await Sharing.isAvailableAsync())) throw new Error('This phone has no way to share files.');
+  await Sharing.shareAsync(file.uri, {
+    mimeType: file.mimeType,
+    dialogTitle: file.mimeType === 'application/pdf' ? 'Save your HerdCare records' : 'Save your HerdCare technical backup',
+    UTI: file.mimeType === 'application/pdf' ? 'com.adobe.pdf' : 'public.json',
+  });
+}
+
+/** Rejects if `promise` has not settled after `ms`, so a stuck native call cannot hang a button. */
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+/**
+ * Renders the records as a PDF report, ready for the OS share sheet — this is the default,
  * farmer-facing "Back up my records" action. Unlike the JSON export below, a PDF can be opened
  * and actually read by anyone (the farmer, a vet, a buyer) without the app, which is the whole
  * point of it existing separately from the technical backup.
@@ -199,7 +226,11 @@ async function shareFile(uri: string, fileName: string, mimeType: string, dialog
 export async function exportPdfReport(): Promise<ExportResult> {
   const bundle = await buildBackup();
   const html = buildBackupReportHtml(bundle);
-  const { uri: printUri } = await Print.printToFileAsync({ html, base64: false });
+  const { uri: printUri } = await withTimeout(
+    Print.printToFileAsync({ html, base64: false }),
+    45_000,
+    'Making the report took too long. Close HerdCare, open it again and try once more.',
+  );
 
   // printToFileAsync names the file itself; renaming it gives the share sheet and the farmer's
   // downloads folder something identifiable instead of a random cache filename.
@@ -209,13 +240,12 @@ export async function exportPdfReport(): Promise<ExportResult> {
   if (renamed.exists) renamed.delete();
   file.moveSync(renamed);
 
-  const shared = await shareFile(renamed.uri, fileName, 'application/pdf', 'Save your HerdCare records');
   await updateSettings({ lastBackupAt: new Date().toISOString() });
-  return { fileName, uri: renamed.uri, counts: bundle.counts, shared };
+  return { fileName, uri: renamed.uri, counts: bundle.counts, mimeType: 'application/pdf' };
 }
 
 /**
- * Writes the full structured backup and hands it to the OS share sheet. This is the file
+ * Writes the full structured backup, ready for the OS share sheet. This is the file
  * "Restore from a backup" reads — a farmer who only ever shares the PDF report has a readable
  * record but nothing that can repopulate a new phone, so Settings surfaces this as a distinct,
  * clearly-labelled second action rather than folding it into the PDF button.
@@ -229,9 +259,8 @@ export async function exportJsonBackup(): Promise<ExportResult> {
   file.create();
   file.write(JSON.stringify(bundle, null, 2));
 
-  const shared = await shareFile(file.uri, fileName, 'application/json', 'Save your HerdCare technical backup');
   await updateSettings({ lastBackupAt: new Date().toISOString() });
-  return { fileName, uri: file.uri, counts: bundle.counts, shared };
+  return { fileName, uri: file.uri, counts: bundle.counts, mimeType: 'application/json' };
 }
 
 export class BackupFormatError extends Error {}

@@ -1,6 +1,6 @@
 import '@/global.css';
 import { useCallback, useEffect } from 'react';
-import { InteractionManager, Text, View } from 'react-native';
+import { AppState, InteractionManager, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack, ThemeProvider, DarkTheme, DefaultTheme } from 'expo-router';
@@ -11,6 +11,7 @@ import { db } from '@/db/client';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 import { syncAgentLink } from '@/lib/referral';
 import { refreshAgentFollowUps } from '@/lib/agent/followUps';
+import { autoSyncBackup } from '@/lib/cloudSync';
 import { NotificationRouter } from '@/components/NotificationRouter';
 import { UndoToastHost } from '@/components/ui/UndoToast';
 import { LicenseProvider } from '@/components/license/LicenseProvider';
@@ -67,6 +68,8 @@ export default function RootLayout() {
           .then(() => syncAgentLink())
           .catch(() => {})
           .then(() => refreshAgentFollowUps())
+          .catch(() => {})
+          .then(() => autoSyncBackup())
           .catch(() => {});
       }, STARTUP_HOUSEKEEPING_DELAY_MS);
     });
@@ -74,6 +77,16 @@ export default function RootLayout() {
       task.cancel();
       if (timer) clearTimeout(timer);
     };
+  }, [ready]);
+
+  // Coming back to the app after logging things elsewhere, or after regaining signal, is the other
+  // natural moment to save a copy online. Throttled inside, and silent: it never interrupts.
+  useEffect(() => {
+    if (!ready) return;
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active') autoSyncBackup().catch(() => {});
+    });
+    return () => subscription.remove();
   }, [ready]);
 
   if (error) {
@@ -193,7 +206,7 @@ export default function RootLayout() {
                 options={{ presentation: 'modal', headerShown: true, title: 'Repeating task' }}
               />
               <Stack.Screen name="activate" options={{ presentation: 'modal', headerShown: true, title: 'Subscription' }} />
-              <Stack.Screen name="account" options={{ presentation: 'modal', headerShown: true, title: 'This phone' }} />
+              <Stack.Screen name="account" options={{ presentation: 'modal', headerShown: true, title: 'New phone' }} />
               <Stack.Screen name="agent/index" options={{ headerShown: true, title: 'Agent Portal' }} />
               <Stack.Screen name="agent/earnings" options={{ headerShown: true, title: 'What you earn' }} />
               <Stack.Screen

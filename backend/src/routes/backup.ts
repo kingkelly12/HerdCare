@@ -16,7 +16,7 @@ import { farmForDeviceToken } from './auth';
  */
 
 /** Generous for a smallholder's whole history, small enough that nothing runs away. */
-const MAX_BACKUP_BYTES = 8 * 1024 * 1024;
+export const MAX_BACKUP_BYTES = 8 * 1024 * 1024;
 
 export const backup = new Hono<{ Bindings: Env }>();
 
@@ -24,7 +24,7 @@ function bearer(header: string | undefined): string | undefined {
   return header?.startsWith('Bearer ') ? header.slice(7) : undefined;
 }
 
-async function gzipToBase64(text: string): Promise<string> {
+export async function gzipToBase64(text: string): Promise<string> {
   const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
   const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
 
@@ -37,7 +37,7 @@ async function gzipToBase64(text: string): Promise<string> {
   return btoa(binary);
 }
 
-async function gunzipFromBase64(encoded: string): Promise<string> {
+export async function gunzipFromBase64(encoded: string): Promise<string> {
   const binary = atob(encoded);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
