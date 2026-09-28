@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
 import { Callout } from '@/components/ui/Callout';
 import { useColors } from '@/theme/colors';
-import { notifySaved } from '@/lib/haptics';
 import { createAdminAgent, type CreateAgentResult } from '@/lib/api/agency';
 import { getStoredAdminSession } from '@/lib/agencyStorage';
 import { DEFAULT_TERMS } from '@/lib/agent/earnings';
@@ -68,7 +67,6 @@ export default function NewAgentScreen() {
       return;
     }
 
-    notifySaved();
     setCreated(res.data);
   }
 

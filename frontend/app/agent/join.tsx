@@ -10,7 +10,6 @@ import { TextField } from '@/components/ui/TextField';
 import { Callout } from '@/components/ui/Callout';
 import { useColors } from '@/theme/colors';
 import { useLicense } from '@/components/license/LicenseProvider';
-import { notifySaved } from '@/lib/haptics';
 import { registerAgent } from '@/lib/api/agency';
 import { PRICE_CURRENCY } from '@/lib/license/pricing';
 import { formatMoney } from '@/utils/money';
@@ -67,7 +66,6 @@ export default function JoinAgentScreen() {
       return;
     }
 
-    notifySaved();
 
     // Persist agent session locally
     await saveAgentSession({

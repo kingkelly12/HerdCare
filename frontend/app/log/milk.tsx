@@ -19,7 +19,6 @@ import { animals, MILK_SESSIONS, MILKING_SPECIES, type MilkSession } from '@/db/
 import { getRelativeDateIso } from '@/utils/livestockRules';
 import { formatMoney } from '@/utils/money';
 import { useColors } from '@/theme/colors';
-import { notifySaved } from '@/lib/haptics';
 
 const SESSION_OPTIONS = MILK_SESSIONS.map((session) => ({
   value: session,
@@ -118,7 +117,6 @@ export default function LogMilkScreen() {
         pricePerLitre: price,
         entries: (milkers ?? []).map((animal) => ({ animalId: animal.id, litres: litresByAnimal[animal.id] ?? '' })),
       });
-      notifySaved();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this milking.');
@@ -187,7 +185,7 @@ export default function LogMilkScreen() {
 
       {/* Shown rather than asked for. The price is a standing rate that changes a few times a
           year, so re-entering it at every milking would be busywork — and because editing here
-          writes the new rate back to Settings, changing it once is enough. */}
+          saves the new rate as the usual one, changing it once is enough. */}
       <Surface level="raised" className="flex-row items-center gap-3 p-4">
         <Ionicons name="pricetag-outline" size={20} color={colors.secondary} />
         {editingPrice ? (
@@ -206,7 +204,7 @@ export default function LogMilkScreen() {
               {price > 0 ? `${formatMoney(price, currency)} per litre` : 'No price set'}
             </Text>
             <Text className="text-label text-tertiary">
-              {price > 0 ? 'Your usual rate, from Settings' : 'Set it to see what your milk earns'}
+              {price > 0 ? 'Your usual rate. Tap Change when it goes up or down.' : 'Set it to see what your milk earns'}
             </Text>
           </View>
         )}
@@ -216,7 +214,7 @@ export default function LogMilkScreen() {
           hitSlop={8}
           className="min-h-touch items-center justify-center rounded-pill px-3 active:bg-sunken"
         >
-          <Text className="text-callout font-sans-bold text-brand">{editingPrice ? 'Save' : 'Change'}</Text>
+          <Text className="text-callout font-sans-bold text-brand">{editingPrice ? 'Save' : price > 0 ? 'Change' : 'Set price'}</Text>
         </Pressable>
       </Surface>
 

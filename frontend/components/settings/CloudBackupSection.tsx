@@ -10,7 +10,6 @@ import { isCloudConfigured } from '@/lib/api/client';
 import { updateSettings } from '@/db/reminders';
 import { getCloudInstall, isSyncing, knownPhone, onSyncActivity, syncBackup, type SyncState } from '@/lib/cloudSync';
 import { formatKenyanMobile, normaliseKenyanMobile } from '@/lib/referral';
-import { notifySaved } from '@/lib/haptics';
 
 function ago(iso: string): string {
   const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
@@ -65,7 +64,6 @@ export function CloudBackupSection({ hasRecords }: { hasRecords: boolean }) {
     setOutcome(null);
     const result = await syncBackup({ force: true });
     setOutcome(result);
-    if (result.state === 'saved') notifySaved();
     reload();
   }
 
@@ -78,7 +76,6 @@ export function CloudBackupSection({ hasRecords }: { hasRecords: boolean }) {
     await updateSettings({ farmerPhone: normalised });
     setPhone(normalised);
     setPhoneDraft('');
-    notifySaved();
     // Sent straight away, so the saved copy can be found under this number.
     syncBackup().then(setOutcome).catch(() => {});
   }

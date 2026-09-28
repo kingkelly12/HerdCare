@@ -1,7 +1,6 @@
 import { useRef } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown, FadeOutRight, LinearTransition, type SharedValue, useAnimatedStyle } from 'react-native-reanimated';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { Surface } from '@/components/ui/Surface';
@@ -60,7 +59,6 @@ export function ReminderCard({ reminder, animal, scopeLabel, onDone, onDismiss, 
   const accent = due.tone === 'overdue' ? colors.danger : due.tone === 'today' ? colors.warn : colors.brand;
 
   function complete() {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     onDone();
   }
 

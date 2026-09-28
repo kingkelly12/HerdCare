@@ -15,7 +15,6 @@ import { currentFlockCount } from '@/db/flocks';
 import { formatEggs, layingPercentage, loadEggRecord, saveEggRecord, toEggs } from '@/db/eggs';
 import { EGGS_PER_TRAY, LAYING_POULTRY_TYPES, flockEvents, flocks } from '@/db/schema';
 import { getRelativeDateIso } from '@/utils/livestockRules';
-import { notifySaved } from '@/lib/haptics';
 
 export default function LogEggsScreen() {
   const [flockId, setFlockId] = useState<string | null>(null);
@@ -78,7 +77,6 @@ export default function LogEggsScreen() {
     setError(null);
     try {
       await saveEggRecord({ flockId, recordDate, eggsCollected: collected, eggsBroken: brokenCount });
-      notifySaved();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this collection.');

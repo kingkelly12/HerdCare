@@ -13,7 +13,6 @@ import { SelectedAnimalField } from '@/components/animals/SelectedAnimalField';
 import { db } from '@/db/client';
 import { animals, healthLogs, type Animal } from '@/db/schema';
 import { addDaysIso, formatDateForDisplay, getRelativeDateIso, startOfTodayIso } from '@/utils/livestockRules';
-import { notifySaved } from '@/lib/haptics';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 
 export default function LogHealthScreen() {
@@ -64,7 +63,6 @@ export default function LogHealthScreen() {
           .set({ status: 'in_withdrawal', updatedAt: new Date().toISOString() })
           .where(and(eq(animals.id, selectedAnimal.id), eq(animals.status, 'active')));
       }
-      notifySaved();
       // Not awaited — see the note in log/breeding.tsx. Rescheduling notifications can block on
       // an OS permission dialog, which must not stall confirmation that the treatment was saved.
       refreshRemindersAndNotifications().catch(() => {});

@@ -17,7 +17,6 @@ import { findTagClash } from '@/db/queries';
 import { animals, birthRecords, DELIVERY_TYPES, type Animal, type DeliveryType, type Gender } from '@/db/schema';
 import { calculateWeaningDueDate, formatDateForDisplay, getRelativeDateIso } from '@/utils/livestockRules';
 import { useColors } from '@/theme/colors';
-import { notifySaved } from '@/lib/haptics';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 
 const DELIVERY_OPTIONS = DELIVERY_TYPES.map((type) => ({ value: type, label: type }));
@@ -125,7 +124,6 @@ export default function LogBirthScreen() {
         });
       }
 
-      notifySaved();
       // Not awaited — see the note in log/breeding.tsx. Rescheduling notifications can block on
       // an OS permission dialog, which must not stall confirmation that the birth was saved.
       refreshRemindersAndNotifications().catch(() => {});

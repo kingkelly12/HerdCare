@@ -16,7 +16,6 @@ import {
   type RestoreSummary,
 } from '@/lib/backup';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
-import { notifySaved } from '@/lib/haptics';
 import { daysFromToday, formatDateForDisplay } from '@/utils/livestockRules';
 
 function summarise(summary: RestoreSummary): string {
@@ -59,7 +58,6 @@ export function BackupSection({ lastBackupAt, hasRecords }: { lastBackupAt: stri
       return;
     }
     setBusy(null);
-    notifySaved();
     setMessage(done);
     shareFile(file).catch((e) => {
       const text = e instanceof Error ? e.message : '';
@@ -102,7 +100,6 @@ export function BackupSection({ lastBackupAt, hasRecords }: { lastBackupAt: stri
               try {
                 const summary = await restoreBackup(picked.bundle);
                 await refreshRemindersAndNotifications();
-                notifySaved();
                 setMessage(summarise(summary));
               } catch (e) {
                 setMessage(e instanceof Error ? e.message : 'Could not restore that backup.');

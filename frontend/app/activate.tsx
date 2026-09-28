@@ -27,7 +27,6 @@ import { describeStatus } from '@/lib/license/status';
 import { useColors } from '@/theme/colors';
 import { formatDateForDisplay } from '@/utils/livestockRules';
 import { formatMoney } from '@/utils/money';
-import { notifySaved } from '@/lib/haptics';
 import { DEFAULT_TERMS } from '@/lib/agent/earnings';
 
 /** Who to call when a code does not arrive. Shown to the farmer, so keep it a real number. */
@@ -108,7 +107,6 @@ export default function ActivateScreen() {
       return;
     }
 
-    notifySaved();
     router.replace('/');
   }
 
@@ -148,7 +146,6 @@ export default function ActivateScreen() {
     setPayNote(null);
 
     if (outcome.outcome === 'paid') {
-      notifySaved();
       // waitForPayment has already stored the new code, so the write lock is lifting as we leave.
       await refresh();
       Alert.alert('Paid', `Thank you. You are covered to ${formatDateForDisplay(outcome.expiresAt ?? null)}.`);

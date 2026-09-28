@@ -15,7 +15,6 @@ import { currentFlockCount } from '@/db/flocks';
 import { flockEvents, flocks, type FlockEventType } from '@/db/schema';
 import { getRelativeDateIso } from '@/utils/livestockRules';
 import { FLOCK_EVENT_META, FLOCK_EVENT_OPTIONS } from '@/utils/poultryRules';
-import { notifySaved } from '@/lib/haptics';
 
 export default function LogFlockEventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -61,7 +60,6 @@ export default function LogFlockEventScreen() {
         quantity: meta.needsQuantity ? quantityNumber : null,
         description: description.trim() || null,
       });
-      notifySaved();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this entry.');

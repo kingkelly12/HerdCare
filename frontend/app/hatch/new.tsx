@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/Button';
 import { db } from '@/db/client';
 import { DEFAULT_INCUBATION_DAYS, flocks, hatchBatches } from '@/db/schema';
 import { addDaysIso, formatDateForDisplay, getRelativeDateIso } from '@/utils/livestockRules';
-import { notifySaved } from '@/lib/haptics';
 
 export default function NewHatchScreen() {
   const [setDate, setSetDate] = useState(getRelativeDateIso(0));
@@ -45,7 +44,6 @@ export default function NewHatchScreen() {
           sourceFlockId,
         })
         .returning();
-      notifySaved();
       router.replace(`/hatch/${created.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start this batch.');

@@ -16,7 +16,6 @@ import { restoreFromInstall } from '@/lib/cloudSync';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 import { useLicense } from '@/components/license/LicenseProvider';
 import { formatDateForDisplay } from '@/utils/livestockRules';
-import { notifySaved } from '@/lib/haptics';
 import type { RestoreSummary } from '@/lib/backup';
 
 function countAdded(summary: RestoreSummary): number {
@@ -93,7 +92,6 @@ export default function AccountScreen() {
 
     await refreshRemindersAndNotifications().catch(() => {});
     setBusy(false);
-    notifySaved();
     setResult(message);
     setStage('done');
   }

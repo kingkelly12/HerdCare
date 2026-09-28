@@ -17,7 +17,6 @@ import {
   POULTRY_TYPE_OPTIONS,
   formatFlockAge,
 } from '@/utils/poultryRules';
-import { notifySaved } from '@/lib/haptics';
 
 export default function NewFlockScreen() {
   const [name, setName] = useState('');
@@ -60,7 +59,6 @@ export default function NewFlockScreen() {
           initialCount: countNumber,
         })
         .returning();
-      notifySaved();
       router.replace(`/flock/${created.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this flock.');

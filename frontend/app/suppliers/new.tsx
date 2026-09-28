@@ -6,7 +6,6 @@ import { TextField } from '@/components/ui/TextField';
 import { Button } from '@/components/ui/Button';
 import { db } from '@/db/client';
 import { suppliers } from '@/db/schema';
-import { notifySaved } from '@/lib/haptics';
 
 export default function NewSupplierScreen() {
   const [name, setName] = useState('');
@@ -25,7 +24,6 @@ export default function NewSupplierScreen() {
         .insert(suppliers)
         .values({ name: name.trim(), phone: phone.trim() || null })
         .returning();
-      notifySaved();
       router.replace(`/suppliers/${created.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this supplier.');

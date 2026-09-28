@@ -10,7 +10,6 @@ import { TextField } from '@/components/ui/TextField';
 import { Callout } from '@/components/ui/Callout';
 import { useColors } from '@/theme/colors';
 import { formatMoney } from '@/utils/money';
-import { notifySaved } from '@/lib/haptics';
 import {
   getAdminAgents,
   settleAdminAgent,
@@ -82,7 +81,6 @@ export default function AdminScreen() {
       return;
     }
 
-    notifySaved();
     const newSession = { token };
     await saveAdminSession(newSession);
     setSession(newSession);
@@ -124,7 +122,6 @@ export default function AdminScreen() {
               return;
             }
 
-            notifySaved();
             Alert.alert('Settled', `Marked ${formatMoney(res.data.settled, currency)} as paid for ${agent.code}.`);
             loadDashboard(session.token);
           },

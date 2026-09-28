@@ -16,7 +16,6 @@ import { flocks, hatchBatches, type PoultryType } from '@/db/schema';
 import { getRelativeDateIso } from '@/utils/livestockRules';
 import { POULTRY_TYPE_OPTIONS } from '@/utils/poultryRules';
 import { useColors } from '@/theme/colors';
-import { notifySaved } from '@/lib/haptics';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 
 export default function RecordHatchScreen() {
@@ -72,7 +71,6 @@ export default function RecordHatchScreen() {
         .set({ hatchedDate, chicksHatched: chicksNumber, resultingFlockId, updatedAt: new Date().toISOString() })
         .where(eq(hatchBatches.id, id));
 
-      notifySaved();
       refreshRemindersAndNotifications().catch(() => {});
       router.back();
     } catch (e) {

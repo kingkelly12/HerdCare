@@ -15,7 +15,6 @@ import { supplierBalance } from '@/db/suppliers';
 import { expenses, supplierPayments, suppliers } from '@/db/schema';
 import { getRelativeDateIso } from '@/utils/livestockRules';
 import { formatMoney } from '@/utils/money';
-import { notifySaved } from '@/lib/haptics';
 
 export default function PaySupplierScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -51,7 +50,6 @@ export default function PaySupplierScreen() {
     setError(null);
     try {
       await db.insert(supplierPayments).values({ supplierId: id, paymentDate, amount: amountNumber });
-      notifySaved();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this payment.');

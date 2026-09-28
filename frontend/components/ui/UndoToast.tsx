@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSegments } from 'expo-router';
@@ -60,7 +59,6 @@ export function UndoToastHost() {
     if (timerRef.current) clearTimeout(timerRef.current);
     const request = toast;
     setToast(null);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     await request?.onUndo();
   }
 

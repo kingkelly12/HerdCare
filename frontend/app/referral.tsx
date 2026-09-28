@@ -11,7 +11,6 @@ import { Callout } from '@/components/ui/Callout';
 import { useColors } from '@/theme/colors';
 import { useLicense } from '@/components/license/LicenseProvider';
 import { getSettings } from '@/db/reminders';
-import { notifySaved } from '@/lib/haptics';
 import { formatKenyanMobile, linkToAgent, normaliseKenyanMobile, type SyncOutcome } from '@/lib/referral';
 import { REFERRAL_BONUS_LABEL } from '@/lib/license/status';
 
@@ -59,7 +58,6 @@ export default function ReferralScreen() {
     try {
       const result = await linkToAgent({ code, phone, name });
       await refresh();
-      if (result.state !== 'rejected' && result.state !== 'unknown-agent') notifySaved();
       setOutcome(result);
     } catch {
       setOutcome({ state: 'rejected', message: 'Could not save that. Try again.' });

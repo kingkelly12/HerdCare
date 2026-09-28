@@ -12,7 +12,6 @@ import { Callout } from '@/components/ui/Callout';
 import { useColors } from '@/theme/colors';
 import { formatMoney } from '@/utils/money';
 import { formatDateForDisplay } from '@/utils/livestockRules';
-import { notifySaved } from '@/lib/haptics';
 import {
   getAgentMe,
   getAgentFarms,
@@ -148,7 +147,6 @@ export default function AgentScreen() {
       return;
     }
 
-    notifySaved();
     const newSession = { code, apiKey: key, name: check.data.agent.name };
     await saveAgentSession(newSession);
     setSession(newSession);

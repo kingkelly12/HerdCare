@@ -1,6 +1,5 @@
 import { Pressable, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useColors } from '@/theme/colors';
 
@@ -19,7 +18,6 @@ export function Fab({ onPress, icon = 'add', label }: FabProps) {
         accessibilityRole="button"
         accessibilityLabel={label ?? 'Add'}
         onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
           onPress();
         }}
         className="h-16 flex-row items-center justify-center gap-2 rounded-pill bg-brand px-6 active:bg-brand-strong"

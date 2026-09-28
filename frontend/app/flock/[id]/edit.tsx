@@ -13,7 +13,6 @@ import { db } from '@/db/client';
 import { deleteFlockCascade } from '@/db/queries';
 import { FLOCK_STATUSES, flocks, type FlockSource, type FlockStatus, type PoultryType } from '@/db/schema';
 import { FLOCK_SOURCE_OPTIONS, POULTRY_TYPE_OPTIONS } from '@/utils/poultryRules';
-import { notifySaved } from '@/lib/haptics';
 
 const STATUS_OPTIONS = FLOCK_STATUSES.map((status) => ({
   value: status,
@@ -74,7 +73,6 @@ export default function EditFlockScreen() {
           updatedAt: new Date().toISOString(),
         })
         .where(eq(flocks.id, id));
-      notifySaved();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save these changes.');

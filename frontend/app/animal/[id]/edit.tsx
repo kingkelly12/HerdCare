@@ -16,7 +16,6 @@ import { db } from '@/db/client';
 import { deleteAnimalCascade, findTagClash } from '@/db/queries';
 import { animals, SPECIES, type Animal, type Gender, type Species } from '@/db/schema';
 import { SPECIES_RULES } from '@/utils/livestockRules';
-import { notifySaved } from '@/lib/haptics';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 
 const GENDER_OPTIONS: { value: Gender; label: string }[] = [
@@ -120,7 +119,6 @@ export default function EditAnimalScreen() {
           updatedAt: new Date().toISOString(),
         })
         .where(eq(animals.id, id));
-      notifySaved();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save these changes.');

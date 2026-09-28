@@ -17,7 +17,6 @@ import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { getRelativeDateIso } from '@/utils/livestockRules';
 import { formatMoney } from '@/utils/money';
 import { EXPENSE_CATEGORY_OPTIONS, INCOME_CATEGORY_OPTIONS } from '@/utils/financeCategories';
-import { notifySaved } from '@/lib/haptics';
 
 type Direction = 'income' | 'expense';
 
@@ -111,7 +110,6 @@ export function FinanceEntryForm({ direction, initial, supplierId }: FinanceEntr
           supplierId: supplier,
         });
       }
-      notifySaved();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this entry.');

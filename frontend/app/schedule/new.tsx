@@ -12,7 +12,6 @@ import { reminderSchedules, type RoutineCategory, type Species } from '@/db/sche
 import { formatDateForDisplay, getRelativeDateIso, SPECIES_LIST } from '@/utils/livestockRules';
 import { INTERVAL_PRESETS, ROUTINE_CATEGORY_LIST, ROUTINE_CATEGORY_META } from '@/utils/reminderRules';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
-import { notifySaved } from '@/lib/haptics';
 
 const SPECIES_OPTIONS = [{ value: 'all' as const, label: 'All animals' }, ...SPECIES_LIST];
 const INTERVAL_OPTIONS = INTERVAL_PRESETS.map((preset) => ({ value: String(preset.days), label: preset.label }));
@@ -48,7 +47,6 @@ export default function NewScheduleScreen() {
         speciesFilter: speciesFilter === 'all' ? null : speciesFilter,
         nextDueDate: firstDueDate,
       });
-      notifySaved();
       // Not awaited — see the note in log/breeding.tsx. Rescheduling notifications can block on
       // an OS permission dialog, which must not stall confirmation that the task was saved.
       refreshRemindersAndNotifications().catch(() => {});

@@ -14,7 +14,6 @@ import { SelectedAnimalField } from '@/components/animals/SelectedAnimalField';
 import { db } from '@/db/client';
 import { animals, BREEDING_EVENT_TYPES, breedingEvents, type Animal, type BreedingEventType } from '@/db/schema';
 import { calculateExpectedDueDate, formatDateForDisplay, getRelativeDateIso } from '@/utils/livestockRules';
-import { notifySaved } from '@/lib/haptics';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 
 const EVENT_TYPE_OPTIONS = BREEDING_EVENT_TYPES.map((type) => ({ value: type, label: type.replace(/_/g, ' ') }));
@@ -58,7 +57,6 @@ export default function LogBreedingScreen() {
         expectedDueDate,
         notes: notes.trim() || null,
       });
-      notifySaved();
       // Deliberately not awaited: this reschedules notifications, which on the very first call
       // can block on an OS permission dialog — that would leave the save button spinning for
       // however long the farmer takes to respond to a prompt about something unrelated to

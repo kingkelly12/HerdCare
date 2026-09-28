@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, Switch, Text, View } from 'react-native';
+import { Pressable, Switch, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -9,7 +9,6 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Surface } from '@/components/ui/Surface';
 import { Button } from '@/components/ui/Button';
 import { Segmented } from '@/components/ui/Segmented';
-import { TextField } from '@/components/ui/TextField';
 import { db } from '@/db/client';
 import { updateSettings } from '@/db/reminders';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
@@ -79,46 +78,14 @@ export default function SettingsScreen() {
   // Anything worth backing up: animals or poultry. Money and customers come with them in practice.
   const hasRecords = herdSize > 0 || (flockRows?.length ?? 0) > 0;
 
-  // Held locally while typing and written on blur — persisting every keystroke would fight the
-  // live query for control of the text field.
-  const [milkPrice, setMilkPrice] = useState<string | null>(null);
-  const [eggPrice, setEggPrice] = useState<string | null>(null);
-  const [eggUnitPrice, setEggUnitPrice] = useState<string | null>(null);
-  const [meatPrice, setMeatPrice] = useState<string | null>(null);
+  // Held locally while typing and written on blur, so each keystroke does not fight the live query.
   const [currency, setCurrency] = useState<string | null>(null);
-
-  const milkPriceValue = milkPrice ?? String(prefs?.milkPricePerLitre ?? 0);
-  const eggPriceValue = eggPrice ?? String(prefs?.eggPricePerTray ?? 0);
-  const eggUnitPriceValue = eggUnitPrice ?? String(prefs?.eggPricePerEgg ?? 0);
-  const meatPriceValue = meatPrice ?? String(prefs?.meatPricePerKg ?? 0);
   const currencyValue = currency ?? prefs?.currency ?? 'KES';
-
-
-  const asPrice = (value: string) => {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-  };
-
-  function commitEggPrice() {
-    patchSettings({ eggPricePerTray: asPrice(eggPriceValue) });
-  }
-
-  function commitEggUnitPrice() {
-    patchSettings({ eggPricePerEgg: asPrice(eggUnitPriceValue) });
-  }
-
-  function commitMeatPrice() {
-    patchSettings({ meatPricePerKg: asPrice(meatPriceValue) });
-  }
-
-  function commitMilkPrice() {
-    const parsed = Number.parseFloat(milkPriceValue);
-    patchSettings({ milkPricePerLitre: Number.isFinite(parsed) && parsed >= 0 ? parsed : 0 });
-  }
 
   function commitCurrency() {
     const trimmed = currencyValue.trim().toUpperCase();
     if (trimmed) patchSettings({ currency: trimmed });
+    setCurrency(null);
   }
 
   async function patchSettings(patch: Parameters<typeof updateSettings>[0]) {
@@ -152,73 +119,6 @@ export default function SettingsScreen() {
       <Animated.View entering={FadeInDown.duration(280)} className="pt-4">
         <Text className="text-title font-sans-bold text-primary">Settings</Text>
       </Animated.View>
-
-      {prefs ? (
-        <View className="gap-2">
-          <SectionTitle>Selling prices</SectionTitle>
-          <Surface level="raised" className="gap-3 p-4">
-            <View className="flex-row gap-3">
-              <View className="flex-1">
-                <TextField
-                  label="Price per litre"
-                  value={milkPriceValue}
-                  onChangeText={setMilkPrice}
-                  onBlur={commitMilkPrice}
-                  keyboardType="decimal-pad"
-                />
-              </View>
-              <View className="w-28">
-                <TextField
-                  label="Currency"
-                  value={currencyValue}
-                  onChangeText={setCurrency}
-                  onBlur={commitCurrency}
-                  autoCapitalize="characters"
-                  maxLength={4}
-                />
-              </View>
-            </View>
-            <View className="flex-row gap-3">
-              <View className="flex-1">
-                <TextField
-                  label="Price per tray of eggs"
-                  value={eggPriceValue}
-                  onChangeText={setEggPrice}
-                  onBlur={commitEggPrice}
-                  keyboardType="decimal-pad"
-                />
-              </View>
-              <View className="flex-1">
-                <TextField
-                  label="Price per egg"
-                  value={eggUnitPriceValue}
-                  onChangeText={setEggUnitPrice}
-                  onBlur={commitEggUnitPrice}
-                  keyboardType="decimal-pad"
-                  hint="For customers buying loose."
-                />
-              </View>
-            </View>
-            <View className="flex-row gap-3">
-              <View className="flex-1">
-                <TextField
-                  label="Price per kg of meat"
-                  value={meatPriceValue}
-                  onChangeText={setMeatPrice}
-                  onBlur={commitMeatPrice}
-                  keyboardType="decimal-pad"
-                />
-              </View>
-              <View className="flex-1" />
-            </View>
-            <Text className="text-label text-tertiary">
-              What you sell for. Loose eggs have their own price because a single egg normally fetches more than a
-              share of a tray. Every record keeps the price it was saved with, so raising a price never rewrites what
-              you already earned or what somebody already owes.
-            </Text>
-          </Surface>
-        </View>
-      ) : null}
 
       <View className="gap-2">
         <SectionTitle>Subscription & Referral</SectionTitle>
@@ -345,7 +245,24 @@ export default function SettingsScreen() {
       <View className="gap-2">
         <SectionTitle>About</SectionTitle>
         <Surface level="raised">
-          <Row icon="cloud-offline-outline" title="Offline-first" subtitle="All data lives on this device" />
+          <Row
+            icon="cash-outline"
+            title="Currency"
+            subtitle="Used for prices and money totals"
+            right={
+              <TextInput
+                value={currencyValue}
+                onChangeText={setCurrency}
+                onBlur={commitCurrency}
+                autoCapitalize="characters"
+                maxLength={4}
+                accessibilityLabel="Currency"
+                className="min-w-16 rounded-field border border-line px-3 py-1.5 text-center text-callout font-sans-semibold text-primary"
+                placeholderTextColor={colors.tertiary}
+              />
+            }
+          />
+          <Row icon="cloud-offline-outline" title="Offline-first" subtitle="All data lives on this device" divider />
           <Row
             icon="cloud-done-outline"
             title="Online backup"

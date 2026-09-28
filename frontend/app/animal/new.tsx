@@ -13,7 +13,6 @@ import { db } from '@/db/client';
 import { findTagClash } from '@/db/queries';
 import { animals, SPECIES, type Animal, type Gender, type Species } from '@/db/schema';
 import { SPECIES_RULES } from '@/utils/livestockRules';
-import { notifySaved } from '@/lib/haptics';
 
 const GENDER_OPTIONS: { value: Gender; label: string }[] = [
   { value: 'female', label: 'Female' },
@@ -64,7 +63,6 @@ export default function NewAnimalScreen() {
           sireId: sire?.id ?? null,
         })
         .returning();
-      notifySaved();
       router.replace(`/animal/${created.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this animal.');

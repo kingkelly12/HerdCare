@@ -12,7 +12,6 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { db } from '@/db/client';
 import { hatchBatches } from '@/db/schema';
 import { getRelativeDateIso } from '@/utils/livestockRules';
-import { notifySaved } from '@/lib/haptics';
 import { refreshRemindersAndNotifications } from '@/lib/reminderSync';
 
 export default function CandleScreen() {
@@ -40,7 +39,6 @@ export default function CandleScreen() {
         .update(hatchBatches)
         .set({ candledDate, fertileEggs: fertileNumber, updatedAt: new Date().toISOString() })
         .where(eq(hatchBatches.id, id));
-      notifySaved();
       refreshRemindersAndNotifications().catch(() => {});
       router.back();
     } catch (e) {

@@ -15,7 +15,6 @@ import { getSettings } from '@/db/reminders';
 import { customerPayments, customers, deliveries } from '@/db/schema';
 import { getRelativeDateIso } from '@/utils/livestockRules';
 import { formatMoney } from '@/utils/money';
-import { notifySaved } from '@/lib/haptics';
 
 export default function RecordPaymentScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -51,7 +50,6 @@ export default function RecordPaymentScreen() {
     setError(null);
     try {
       await db.insert(customerPayments).values({ customerId: id, paymentDate, amount: amountNumber });
-      notifySaved();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this payment.');
